@@ -9,8 +9,14 @@
   <body>
     <div class="container">
         <div class="header">
-            <h1>📚 Syllabus Tracker</h1>
-            <p>Manage subjects, chapters, topics and track completion progress</p>
+            <div class="header-right">
+                <img src="logo-removebg-preview.png" alt="School Logo" class="header-logo">
+                <span class="school-name">Akshararambh Public School</span>
+            </div>
+            <div>
+                <h1>📚 Syllabus Tracker</h1>
+                <p>Manage subjects, chapters, topics and track completion progress</p>
+            </div>
         </div>
 
         <!-- Navigation Tabs -->
@@ -251,6 +257,25 @@
             </form>
         </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Delete Item</div>
+                <button class="modal-close" onclick="closeModal('deleteModal')">×</button>
+            </div>
+            <div id="deleteModalBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
+                <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="site-footer">
+        Developed by infrasamurai (Devansh Mishra)
+    </footer>
 
     <script src="script.js"></script>
   </body>

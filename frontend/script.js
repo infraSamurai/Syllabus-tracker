@@ -584,106 +584,176 @@ function findTopic(topicId) {
     for (const subject of subjects) {
         for (const chapter of subject.chapters) {
             const topic = chapter.topics.find(t => t._id === topicId);
-            if (topic) return topic;
+            if (topic) return { subject, chapter, topic };
         }
     }
-    return null;
+    return {};
+}
+
+window.toggleDashboardDetails = function(element) {
+    const details = element.nextElementSibling;
+    if (details.style.display === 'none') {
+        details.style.display = 'block';
+        element.classList.add('active');
+    } else {
+        details.style.display = 'none';
+        element.classList.remove('active');
+    }
 }
 
 // Dashboard Update
 function updateDashboard() {
-    const totalSubjects = subjects.length;
-    const totalChapters = subjects.reduce((sum, s) => sum + (s.chapters ? s.chapters.length : 0), 0);
-    const allTopics = subjects.flatMap(s => s.chapters ? s.chapters.flatMap(c => c.topics || []) : []);
-    const totalTopics = allTopics.length;
-    const completedTopics = allTopics.filter(t => t.completed).length;
+    const totalSubjectsEl = document.getElementById('totalSubjects');
+    const totalChaptersEl = document.getElementById('totalChapters');
+    const totalTopicsEl = document.getElementById('totalTopics');
+    const completedTopicsEl = document.getElementById('completedTopics');
+    const overallProgressEl = document.getElementById('overallProgress');
+    const overviewContainer = document.getElementById('dashboard-overview');
+
+    let totalChapters = 0;
+    let totalTopics = 0;
+    let completedTopics = 0;
+
+    subjects.forEach(subject => {
+        totalChapters += subject.chapters.length;
+        subject.chapters.forEach(chapter => {
+            totalTopics += chapter.topics.length;
+            completedTopics += chapter.topics.filter(t => t.completed).length;
+        });
+    });
+
     const overallProgress = totalTopics > 0 ? (completedTopics / totalTopics) * 100 : 0;
 
-    document.getElementById('totalSubjects').textContent = totalSubjects;
-    document.getElementById('totalChapters').textContent = totalChapters;
-    document.getElementById('totalTopics').textContent = totalTopics;
-    document.getElementById('completedTopics').textContent = completedTopics;
-    document.getElementById('overallProgress').textContent = `${overallProgress.toFixed(0)}%`;
-    
-    const overviewContainer = document.getElementById('dashboard-overview');
-    if (!overviewContainer) return;
+    if(totalSubjectsEl) totalSubjectsEl.textContent = subjects.length;
+    if(totalChaptersEl) totalChaptersEl.textContent = totalChapters;
+    if(totalTopicsEl) totalTopicsEl.textContent = totalTopics;
+    if(completedTopicsEl) completedTopicsEl.textContent = completedTopics;
+    if(overallProgressEl) overallProgressEl.textContent = `${Math.round(overallProgress)}%`;
 
-    if (subjects.length === 0) {
-        overviewContainer.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">📚</div>
-                <h3>No subjects added yet</h3>
-                <p>Start by adding subjects in the "Manage Subjects" tab</p>
-            </div>
-        `;
-        return;
-    }
-    
-    const groupedByClass = subjects.reduce((acc, subject) => {
-        const className = subject.class ? subject.class.name : 'Uncategorized';
-        if (!acc[className]) acc[className] = [];
-        acc[className].push(subject);
+    // Group subjects by name for the overview
+    const groupedSubjects = subjects.reduce((acc, subject) => {
+        if (!acc[subject.name]) {
+            acc[subject.name] = [];
+        }
+        acc[subject.name].push(subject);
         return acc;
     }, {});
 
-    overviewContainer.innerHTML = Object.entries(groupedByClass).map(([className, classSubjects]) => `
-        <div class="class-group">
-            <h4>${className}</h4>
-            <div class="grid-container">
-                ${classSubjects.map(subject => {
-                    const subjectTopics = subject.chapters ? subject.chapters.flatMap(c => c.topics || []) : [];
-                    const completed = subjectTopics.filter(t => t.completed).length;
-                    const total = subjectTopics.length;
-                    const progress = total > 0 ? (completed / total) * 100 : 0;
-                    return `
-                        <div class="card">
-                            <div class="card-title">${subject.name}</div>
-                            <div class="progress-bar-container">
-                                <div class="progress-bar" style="width: ${progress.toFixed(2)}%;"></div>
-                            </div>
-                            <div class="progress-text">${completed} / ${total} Topics</div>
-                        </div>
-                    `;
-                }).join('')}
+    overviewContainer.innerHTML = '';
+    if (Object.keys(groupedSubjects).length === 0) {
+        overviewContainer.innerHTML = `<div class="empty-state">
+            <div class="empty-state-icon">📚</div>
+            <h3>No subjects added yet</h3>
+            <p>Start by adding subjects in the "Manage Subjects" tab</p>
+        </div>`;
+        return;
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'grid-container';
+
+    for (const subjectName in groupedSubjects) {
+        const classSubjects = groupedSubjects[subjectName];
+        
+        const groupTotalTopics = classSubjects.reduce((sum, s) => sum + s.chapters.reduce((c_sum, c) => c_sum + c.topics.length, 0), 0);
+        const groupCompletedTopics = classSubjects.reduce((sum, s) => sum + s.chapters.reduce((c_sum, c) => c_sum + c.topics.filter(t => t.completed).length, 0), 0);
+        const groupProgress = groupTotalTopics > 0 ? (groupCompletedTopics / groupTotalTopics) * 100 : 0;
+        const progressColor = groupProgress >= 80 ? 'high' : groupProgress >= 40 ? 'medium' : 'low';
+
+        const groupEl = document.createElement('div');
+        groupEl.className = 'dashboard-subject-group';
+
+        const summaryCard = document.createElement('div');
+        summaryCard.className = 'dashboard-summary-card';
+        summaryCard.innerHTML = `
+            <div class="dashboard-summary-title">${subjectName}</div>
+            <div class="progress-bar-container">
+                <div class="progress-bar ${progressColor}" style="width: ${groupProgress}%"></div>
             </div>
-        </div>
-    `).join('');
+            <div class="dashboard-summary-classes">${classSubjects.length} ${classSubjects.length > 1 ? 'classes' : 'class'}</div>
+        `;
+
+        const detailsContainer = document.createElement('div');
+        detailsContainer.className = 'dashboard-details';
+        detailsContainer.style.display = 'none';
+
+        classSubjects.forEach(subject => {
+            const totalTopics = subject.chapters.reduce((sum, chap) => sum + chap.topics.length, 0);
+            const completedTopics = subject.chapters.reduce((sum, chap) => sum + chap.topics.filter(t => t.completed).length, 0);
+            const progress = totalTopics > 0 ? (completedTopics / totalTopics) * 100 : 0;
+            const progressColor = progress >= 80 ? 'high' : progress >= 40 ? 'medium' : 'low';
+
+            const detailItem = document.createElement('div');
+            detailItem.className = 'dashboard-detail-item';
+            detailItem.innerHTML = `
+                <div class="dashboard-detail-class">
+                    ${subject.class.name} (Subject Code: ${subject.code})
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar ${progressColor}" style="width: ${progress}%"></div>
+                </div>
+                <div class="progress-text">${Math.round(progress)}%</div>
+            `;
+            detailsContainer.appendChild(detailItem);
+        });
+
+        groupEl.appendChild(summaryCard);
+        groupEl.appendChild(detailsContainer);
+
+        summaryCard.addEventListener('click', () => {
+            summaryCard.classList.toggle('active');
+            detailsContainer.style.display = detailsContainer.style.display === 'none' ? 'block' : 'none';
+        });
+
+        grid.appendChild(groupEl);
+    }
+    overviewContainer.appendChild(grid);
 }
 
 
 // Progress View
 function renderProgressView() {
-    const container = document.getElementById('progressView');
-    if (!container) return;
+    const progressView = document.getElementById('progressView');
+    progressView.innerHTML = '';
+
     if (subjects.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">📈</div>
-                <h3>No progress data available</h3>
-                <p>Add subjects and chapters to see progress tracking</p>
-            </div>
-        `;
+        progressView.innerHTML = `<div class="empty-state">
+            <div class="empty-state-icon">📈</div>
+            <h3>No progress data available</h3>
+            <p>Add subjects and chapters to see progress tracking</p>
+        </div>`;
         return;
     }
-    container.innerHTML = `
-        <ul class="progress-list">
-            ${subjects.map(subject => {
-                const subjectTopics = subject.chapters ? subject.chapters.flatMap(c => c.topics || []) : [];
-                const completed = subjectTopics.filter(t => t.completed).length;
-                const total = subjectTopics.length;
-                const progress = total > 0 ? (completed / total) * 100 : 0;
-                return `
-                    <li class="progress-item">
-                        <div class="progress-item-title">${subject.name} <span class="class-tag">${subject.class ? subject.class.name : ''}</span></div>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar" style="width: ${progress.toFixed(2)}%;">${progress.toFixed(0)}%</div>
-                        </div>
-                        <div class="progress-item-stats">${completed} / ${total} topics completed</div>
-                    </li>
-                `;
-            }).join('')}
-        </ul>
-    `;
+
+    const list = document.createElement('div');
+    list.className = 'progress-list';
+
+    subjects.forEach(subject => {
+        const totalTopics = subject.chapters.reduce((sum, chap) => sum + chap.topics.length, 0);
+        const completedTopics = subject.chapters.reduce((sum, chap) => sum + chap.topics.filter(t => t.completed).length, 0);
+        const progress = totalTopics > 0 ? (completedTopics / totalTopics) * 100 : 0;
+        const progressColor = progress >= 80 ? 'high' : progress >= 40 ? 'medium' : 'low';
+
+        const item = document.createElement('div');
+        item.className = 'progress-view-item'; // Use the new class here
+
+        item.innerHTML = `
+            <div class="progress-item-title">
+                ${subject.name}
+                <span class="class-tag">${subject.class.name}</span>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar ${progressColor}" style="width: ${progress}%"></div>
+            </div>
+            <div class="progress-text">${completedTopics} / ${totalTopics} Topics Completed (${Math.round(progress)}%)</div>
+            <div class="progress-item-stats">
+                Due: ${new Date(subject.deadline).toLocaleDateString()}
+            </div>
+        `;
+        list.appendChild(item);
+    });
+
+    progressView.appendChild(list);
 }
 
 // Alert utility
