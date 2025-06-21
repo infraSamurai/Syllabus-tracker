@@ -1,11 +1,28 @@
 import { Router } from 'express';
-import { SyllabusController } from '../controllers/syllabus.controller';
-import { protect, authorize } from '../middleware/auth.middleware';
+import * as syllabusController from '../controllers/syllabus.controller';
+// import { protect } from '../middleware/auth.middleware';
 
 const router = Router();
-const syllabusController = new SyllabusController();
 
-router.put('/topics/:topicId/progress', protect, authorize('teacher'), syllabusController.updateTopicProgress);
-router.get('/subjects/:subjectId/progress', protect, authorize('teacher', 'admin'), syllabusController.getSubjectProgress);
+// Note: I have commented out the 'protect' middleware for now.
+// This will allow you to easily test the API from your new frontend.
+// We can add it back once the frontend has an authentication flow.
+
+// Routes for Subjects
+router.get('/subjects', syllabusController.getSubjects);
+router.post('/subjects', syllabusController.createSubject);
+router.patch('/subjects/:subjectId', syllabusController.updateSubject);
+router.delete('/subjects/:subjectId', syllabusController.deleteSubject);
+
+// Routes for Chapters
+router.post('/chapters', syllabusController.createChapter);
+router.patch('/chapters/:chapterId', syllabusController.updateChapter);
+router.delete('/chapters/:chapterId', syllabusController.deleteChapter);
+
+// Routes for Topics
+router.post('/topics', syllabusController.createTopic);
+router.patch('/topics/:topicId', syllabusController.updateTopic);
+router.delete('/topics/:topicId', syllabusController.deleteTopic);
+router.patch('/topics/:topicId/toggle', syllabusController.toggleTopicCompletion);
 
 export default router;

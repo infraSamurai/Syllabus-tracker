@@ -3,10 +3,255 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Syllabus Tracker</title>
+    <title>Syllabus Tracker - Management System</title>
+    <link rel="stylesheet" href="style.css">
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div class="container">
+        <div class="header">
+            <h1>📚 Syllabus Tracker</h1>
+            <p>Manage subjects, chapters, topics and track completion progress</p>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showTab('dashboard', event)">📊 Dashboard</button>
+            <button class="nav-tab" onclick="showTab('subjects', event)">📚 Manage Subjects</button>
+            <button class="nav-tab" onclick="showTab('classes', event)">🏫 Manage Classes</button>
+            <button class="nav-tab" onclick="showTab('progress', event)">📈 Progress Tracking</button>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalSubjects">0</div>
+                    <div class="stat-label">Total Subjects</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalChapters">0</div>
+                    <div class="stat-label">Total Chapters</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalTopics">0</div>
+                    <div class="stat-label">Total Topics</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="completedTopics">0</div>
+                    <div class="stat-label">Completed Topics</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="overallProgress">0%</div>
+                    <div class="stat-label">Overall Progress</div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="section-title">📊 Subject Overview</div>
+                <div id="dashboard-overview">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📚</div>
+                        <h3>No subjects added yet</h3>
+                        <p>Start by adding subjects in the "Manage Subjects" tab</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subjects Management Tab -->
+        <div id="subjects" class="tab-content">
+            <div class="header-with-button">
+                <h2>All Subjects</h2>
+                <button class="btn btn-primary" onclick="addSubject()">+ Add Subject</button>
+            </div>
+            <div id="subject-list" class="grid-container"></div>
+        </div>
+
+        <!-- Classes Tab -->
+        <div id="classes" class="tab-content">
+            <div class="header-with-button">
+                <h2>All Classes</h2>
+                <button class="btn btn-primary" onclick="openClassModal()">+ Add Class</button>
+            </div>
+            <div id="class-list" class="grid-container"></div>
+        </div>
+
+        <!-- Progress Tracking Tab -->
+        <div id="progress" class="tab-content">
+            <div class="content-card">
+                <div class="section-title">📈 Detailed Progress Tracking</div>
+                <div id="progressView">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📈</div>
+                        <h3>No progress data available</h3>
+                        <p>Add subjects and chapters to see progress tracking</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="alert-container"></div>
+
+    <!-- Subject Modal -->
+    <div id="subjectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Add New Subject</div>
+                <button class="modal-close" onclick="closeModal('subjectModal')">×</button>
+            </div>
+            
+            <form id="subjectForm">
+                <div class="form-group">
+                    <label class="form-label">Subject Name *</label>
+                    <input type="text" class="form-input" id="subjectName" required>
+                </div>
+                
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Subject Code *</label>
+                        <input type="text" class="form-input" id="subjectCode" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Class *</label>
+                        <select class="form-select" id="subjectClass" required>
+                            <option value="">Select Class</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Department *</label>
+                        <select class="form-select" id="subjectDepartment" required>
+                            <option value="">Select Department</option>
+                            <option value="Mathematics">Mathematics</option>
+                            <option value="Science">Science</option>
+                            <option value="English">English</option>
+                            <option value="Social Studies">Social Studies</option>
+                            <option value="Arts">Arts</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Completion Deadline *</label>
+                        <input type="date" class="form-input" id="subjectDeadline" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-textarea" id="subjectDescription" placeholder="Brief description of the subject"></textarea>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary">✅ Add Subject</button>
+                    <button type="button" class="btn btn-danger" onclick="closeModal('subjectModal')">❌ Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Chapter Modal -->
+    <div id="chapterModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Add New Chapter</div>
+                <button class="modal-close" onclick="closeModal('chapterModal')">×</button>
+            </div>
+            
+            <form id="chapterForm">
+                <input type="hidden" id="chapterSubjectId">
+                
+                <div class="form-group">
+                    <label class="form-label">Chapter Title *</label>
+                    <input type="text" class="form-input" id="chapterTitle" required>
+                </div>
+                
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Chapter Number *</label>
+                        <input type="number" class="form-input" id="chapterNumber" required min="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Expected Completion Date *</label>
+                        <input type="date" class="form-input" id="chapterDeadline" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Chapter Description</label>
+                    <textarea class="form-textarea" id="chapterDescription" placeholder="Brief description of the chapter"></textarea>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary">✅ Add Chapter</button>
+                    <button type="button" class="btn btn-danger" onclick="closeModal('chapterModal')">❌ Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Topic Modal -->
+    <div id="topicModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Add New Topic</div>
+                <button class="modal-close" onclick="closeModal('topicModal')">×</button>
+            </div>
+            
+            <form id="topicForm">
+                <input type="hidden" id="topicChapterId">
+                
+                <div class="form-group">
+                    <label class="form-label">Topic Title *</label>
+                    <input type="text" class="form-input" id="topicTitle" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Expected Completion Date *</label>
+                    <input type="date" class="form-input" id="topicDeadline" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Topic Notes</label>
+                    <textarea class="form-textarea" id="topicNotes" placeholder="Teaching notes or additional information"></textarea>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary">✅ Add Topic</button>
+                    <button type="button" class="btn btn-danger" onclick="closeModal('topicModal')">❌ Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Class Modal -->
+    <div id="classModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Add New Class</div>
+                <button class="modal-close" onclick="closeModal('classModal')">×</button>
+            </div>
+            
+            <form id="classForm">
+                <div class="form-group">
+                    <label class="form-label">Class Name *</label>
+                    <input type="text" class="form-input" id="className" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-textarea" id="classDescription" rows="3"></textarea>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary">✅ Add Class</button>
+                    <button type="button" class="btn btn-danger" onclick="closeModal('classModal')">❌ Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
   </body>
 </html> 

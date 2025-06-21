@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { Progress } from '../models/Progress';
-import { Subject } from '../models/Subject';
+import Subject from '../models/Subject';
+import Chapter from '../models/Chapter';
+import Topic from '../models/Topic';
 import { User } from '../models/User';
-import { Chapter } from '../models/Chapter';
-import { Topic } from '../models/Topic';
 
 export class AdminController {
   async getDashboardStats(req: Request, res: Response, next: NextFunction) {

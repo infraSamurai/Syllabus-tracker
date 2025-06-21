@@ -10,7 +10,10 @@ export const protect = (req: Request, res: Response, next: NextFunction) => {
       token = req.headers.authorization.split(' ')[1];
 
       // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecret') as { id: string, role: string };
+      const decoded = jwt.verify(
+        token, 
+        process.env.JWT_SECRET || 'supersecret'
+      ) as { id: string, role: string };
 
       // Attach user to the request object
       req.user = decoded;
@@ -18,12 +21,10 @@ export const protect = (req: Request, res: Response, next: NextFunction) => {
       next();
     } catch (error) {
       console.error(error);
-      res.status(401).json({ error: 'Not authorized, token failed' });
+      return res.status(401).json({ error: 'Not authorized, token failed' });
     }
-  }
-
-  if (!token) {
-    res.status(401).json({ error: 'Not authorized, no token' });
+  } else {
+    return res.status(401).json({ error: 'Not authorized, no token' });
   }
 };
 

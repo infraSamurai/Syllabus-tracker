@@ -1,4 +1,4 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IUser extends Document {
   name: string;
@@ -6,7 +6,7 @@ export interface IUser extends Document {
   password: string;
   role: 'admin' | 'teacher' | 'student';
   department?: string;
-  subjects?: string[];
+  subjects?: Types.ObjectId[];  // Fixed: Changed from string[] to ObjectId[]
   createdAt: Date;
   updatedAt: Date;
 }

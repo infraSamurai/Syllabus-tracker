@@ -1,0 +1,42 @@
+# ---- Builder Stage ----
+    FROM node:18-alpine AS builder
+    WORKDIR /app
+    
+    # Copy package files
+    COPY package*.json ./
+    RUN npm ci
+    
+    # Copy all source files
+    COPY . .
+    
+    # Debug: List files before build
+    RUN echo "=== Files before build ===" && ls -la
+    
+    # Debug: Check if tsconfig exists
+    RUN echo "=== Checking tsconfig ===" && cat tsconfig.json
+    
+    # Debug: Try to compile without building
+    RUN echo "=== Testing TypeScript compilation ===" && npx tsc --noEmit || true
+    
+    # Build the application
+    RUN echo "=== Running build ===" && npm run build
+    
+    # Debug: Check if dist was created
+    RUN echo "=== Checking dist folder ===" && ls -la dist/ || echo "dist folder not found"
+    
+    # ---- Production Stage ----
+    FROM node:18-alpine
+    WORKDIR /app
+    
+    # Copy package files
+    COPY package*.json ./
+    RUN npm ci --only=production
+    
+    # Copy built files from builder - this might be failing
+    COPY --from=builder /app/dist ./dist
+    
+    # Debug: Verify files were copied
+    RUN echo "=== Files in production stage ===" && ls -la && echo "=== dist folder ===" && ls -la dist/
+    
+    EXPOSE 5000
+    CMD ["npm", "start"]

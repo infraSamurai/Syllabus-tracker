@@ -1,33 +1,26 @@
 import { Schema, model, Document } from 'mongoose';
+import { ITopic } from './Topic';
 
 export interface IChapter extends Document {
   title: string;
   number: number;
-  subject: Schema.Types.ObjectId;
-  totalTopics: number;
-  plannedStartDate: Date;
-  plannedEndDate: Date;
-  actualStartDate?: Date;
-  actualEndDate?: Date;
+  description: string;
+  deadline: Date;
   status: 'not_started' | 'in_progress' | 'completed';
-  createdAt: Date;
-  updatedAt: Date;
+  topics: ITopic['_id'][];
 }
 
-const chapterSchema = new Schema<IChapter>({
+const ChapterSchema = new Schema({
   title: { type: String, required: true },
   number: { type: Number, required: true },
-  subject: { type: Schema.Types.ObjectId, ref: 'Subject', required: true },
-  totalTopics: { type: Number, default: 0 },
-  plannedStartDate: { type: Date, required: true },
-  plannedEndDate: { type: Date, required: true },
-  actualStartDate: { type: Date },
-  actualEndDate: { type: Date },
+  description: { type: String },
+  deadline: { type: Date, required: true },
   status: { 
     type: String, 
-    enum: ['not_started', 'in_progress', 'completed'], 
+    enum: ['not_started', 'in_progress', 'completed'],
     default: 'not_started' 
   },
+  topics: [{ type: Schema.Types.ObjectId, ref: 'Topic' }],
 }, { timestamps: true });
 
-export const Chapter = model<IChapter>('Chapter', chapterSchema);
+export default model<IChapter>('Chapter', ChapterSchema);

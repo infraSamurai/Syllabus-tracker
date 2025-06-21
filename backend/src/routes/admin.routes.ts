@@ -7,9 +7,10 @@ const adminController = new AdminController();
 
 router.use(protect, authorize('admin'));
 
-router.get('/dashboard-stats', adminController.getDashboardStats);
-router.get('/school-wide-progress', adminController.getSchoolWideProgress);
-router.get('/department-progress', adminController.getDepartmentProgress);
-router.get('/compliance-report', adminController.generateComplianceReport);
+// Fix: Bind methods to maintain correct 'this' context
+router.get('/dashboard-stats', adminController.getDashboardStats.bind(adminController));
+router.get('/school-wide-progress', adminController.getSchoolWideProgress.bind(adminController));
+router.get('/department-progress', adminController.getDepartmentProgress.bind(adminController));
+router.get('/compliance-report', adminController.generateComplianceReport.bind(adminController));
 
 export default router;

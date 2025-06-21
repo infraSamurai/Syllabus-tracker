@@ -1,122 +1,114 @@
 import { Request, Response, NextFunction } from 'express';
-import { Subject } from '../models/Subject';
-import { Chapter } from '../models/Chapter';
-import { Topic } from '../models/Topic';
-import { Progress } from '../models/Progress';
+import * as syllabusService from '../services/syllabus.service';
 
-export class SyllabusController {
-  async updateTopicProgress(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { topicId } = req.params;
-      const { status, teacherNotes, needsRevision } = req.body;
-      const teacherId = req.user?.id;
+// SUBJECTS
+export const getSubjects = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const subjects = await syllabusService.getSubjects();
+    res.status(200).json(subjects);
+  } catch (error) {
+    next(error);
+  }
+};
 
-      if (!teacherId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+export const createSubject = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const subject = await syllabusService.createSubject(req.body);
+    res.status(201).json(subject);
+  } catch (error) {
+    next(error);
+  }
+};
 
-      const topic = await Topic.findByIdAndUpdate(
-        topicId,
-        {
-          status,
-          teacherNotes,
-          needsRevision,
-          actualDate: status === 'completed' ? new Date() : undefined
-        },
-        { new: true }
-      );
+export const updateSubject = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const subject = await syllabusService.updateSubject(req.params.subjectId, req.body);
+    if (!subject) return res.status(404).json({ message: 'Subject not found.' });
+    res.json(subject);
+  } catch (error) {
+    next(error);
+  }
+};
 
-      if (!topic) {
-        return res.status(404).json({ error: 'Topic not found' });
-      }
+export const deleteSubject = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await syllabusService.deleteSubject(req.params.subjectId);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
 
-      // Update chapter progress
-      await this.updateChapterProgress(topic.chapter);
-      
-      // Update overall progress
-      const chapter = await Chapter.findById(topic.chapter);
-      if (chapter) {
-        await this.updateSubjectProgress(chapter.subject, teacherId);
-      }
+// CHAPTERS
+export const createChapter = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { subject, ...chapterData } = req.body;
+    const chapter = await syllabusService.createChapter(subject, chapterData);
+    res.status(201).json(chapter);
+  } catch (error) {
+    next(error);
+  }
+};
 
-      res.json(topic);
-    } catch (error) {
-      next(error);
+export const updateChapter = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const chapter = await syllabusService.updateChapter(req.params.chapterId, req.body);
+    if (!chapter) return res.status(404).json({ message: 'Chapter not found.' });
+    res.json(chapter);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteChapter = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await syllabusService.deleteChapter(req.params.chapterId);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
+// TOPICS
+export const createTopic = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { chapter, ...topicData } = req.body;
+    const topic = await syllabusService.createTopic(chapter, topicData);
+    res.status(201).json(topic);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateTopic = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const topic = await syllabusService.updateTopic(req.params.topicId, req.body);
+    if (!topic) return res.status(404).json({ message: 'Topic not found.' });
+    res.json(topic);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteTopic = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await syllabusService.deleteTopic(req.params.topicId);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
+// TOPIC COMPLETION
+export const toggleTopicCompletion = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { topicId } = req.params;
+    const topic = await syllabusService.toggleTopicCompletion(topicId);
+    if (!topic) {
+      return res.status(404).json({ message: 'Topic not found.' });
     }
+    res.status(200).json(topic);
+  } catch (error) {
+    next(error);
   }
-
-  async getSubjectProgress(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { subjectId } = req.params;
-      
-      const chapters = await Chapter.find({ subject: subjectId })
-        .populate('subject')
-        .sort({ number: 1 });
-
-      const chaptersWithTopics = await Promise.all(
-        chapters.map(async (chapter) => {
-          const topics = await Topic.find({ chapter: chapter._id })
-            .sort({ plannedDate: 1 });
-          return { ...chapter.toObject(), topics };
-        })
-      );
-
-      const progress = await Progress.findOne({ subject: subjectId });
-
-      res.json({
-        chapters: chaptersWithTopics,
-        progress
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  private async updateChapterProgress(chapterId: any) {
-    const topics = await Topic.find({ chapter: chapterId });
-    const completedTopics = topics.filter(t => t.status === 'completed').length;
-    
-    let status: 'not_started' | 'in_progress' | 'completed' = 'not_started';
-    if (completedTopics === topics.length && topics.length > 0) {
-      status = 'completed';
-    } else if (completedTopics > 0) {
-      status = 'in_progress';
-    }
-
-    await Chapter.findByIdAndUpdate(chapterId, { status });
-  }
-
-  private async updateSubjectProgress(subjectId: any, teacherId: string) {
-    const chapters = await Chapter.find({ subject: subjectId });
-    const topics = await Topic.find({ 
-      chapter: { $in: chapters.map(c => c._id) } 
-    });
-
-    const completedChapters = chapters.filter(c => c.status === 'completed').length;
-    const completedTopics = topics.filter(t => t.status === 'completed').length;
-    
-    const percentageComplete = topics.length > 0 
-      ? Math.round((completedTopics / topics.length) * 100) 
-      : 0;
-
-    const subject = await Subject.findById(subjectId);
-    const isOnTrack = subject 
-      ? new Date() <= subject.plannedCompletionDate || percentageComplete >= 80
-      : true;
-
-    await Progress.findOneAndUpdate(
-      { subject: subjectId },
-      {
-        totalChapters: chapters.length,
-        completedChapters,
-        totalTopics: topics.length,
-        completedTopics,
-        percentageComplete,
-        isOnTrack,
-        lastUpdated: new Date(),
-        teacher: teacherId
-      },
-      { upsert: true, new: true }
-    );
-  }
-}
+};
