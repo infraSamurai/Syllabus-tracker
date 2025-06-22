@@ -9,6 +9,9 @@ import authRoutes from './routes/auth.routes';
 import syllabusRoutes from './routes/syllabus.routes';
 import adminRoutes from './routes/admin.routes';
 import classRoutes from './routes/class.routes';
+import reportRoutes from './routes/report.routes';
+import taskRoutes from './routes/task.routes';
+import pdfRoutes from './routes/pdf.routes';
 // Removed empty teacher routes import
 
 import errorMiddleware from './middleware/error.middleware';
@@ -33,6 +36,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/syllabus', syllabusRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/classes', classRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/pdf', pdfRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -24,6 +24,8 @@
             <button class="nav-tab active" onclick="showTab('dashboard', event)">📊 Dashboard</button>
             <button class="nav-tab" onclick="showTab('subjects', event)">📚 Manage Subjects</button>
             <button class="nav-tab" onclick="showTab('classes', event)">🏫 Manage Classes</button>
+            <button class="nav-tab" onclick="showTab('tasks', event)">📋 Daily Tasks</button>
+            <button class="nav-tab" onclick="showTab('reports', event)">📊 Reports</button>
             <button class="nav-tab" onclick="showTab('progress', event)">📈 Progress Tracking</button>
         </div>
 
@@ -80,6 +82,51 @@
                 <button class="btn btn-primary" onclick="openClassModal()">+ Add Class</button>
             </div>
             <div id="class-list" class="grid-container"></div>
+        </div>
+
+        <!-- Daily Tasks Tab -->
+        <div id="tasks" class="tab-content">
+            <div class="header-with-button">
+                <h2>📋 Daily Tasks</h2>
+                <div class="task-controls">
+                    <div class="date-range-controls">
+                        <label>Generate tasks from:</label>
+                        <input type="date" id="taskStartDate" class="form-input">
+                        <label>to:</label>
+                        <input type="date" id="taskEndDate" class="form-input">
+                    </div>
+                    <button class="btn btn-secondary" onclick="generateDailyTasks()">🔄 Generate Tasks</button>
+                    <input type="date" id="taskDate" class="form-input" onchange="loadTasks()" placeholder="View tasks for date">
+                    <button class="btn btn-primary" onclick="downloadDailyTaskPDF()">📄 Download PDF</button>
+                </div>
+            </div>
+            <div id="task-list" class="task-container">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <h3>No tasks for today</h3>
+                    <p>Click "Generate Tasks" to create daily tasks from your syllabus</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Tab -->
+        <div id="reports" class="tab-content">
+            <div class="header-with-button">
+                <h2>📊 Reports & Analytics</h2>
+                <div class="report-controls">
+                    <button class="btn btn-secondary" onclick="generateWeeklyReport()">📅 Weekly Report</button>
+                    <button class="btn btn-secondary" onclick="generateMonthlyReport()">📊 Monthly Report</button>
+                    <button class="btn btn-primary" onclick="downloadWeeklyPDF()">📄 Download Weekly PDF</button>
+                    <button class="btn btn-primary" onclick="downloadMonthlyPDF()">📄 Download Monthly PDF</button>
+                </div>
+            </div>
+            <div id="report-content">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📊</div>
+                    <h3>No reports generated yet</h3>
+                    <p>Click "Weekly Report" or "Monthly Report" to generate analytics</p>
+                </div>
+            </div>
         </div>
 
         <!-- Progress Tracking Tab -->

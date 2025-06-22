@@ -16,6 +16,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         const el = document.getElementById(id);
         if (el) el.min = today;
     });
+
+    // Initialize date inputs with default values
+    const todayDate = new Date();
+    const thirtyDaysLater = new Date();
+    thirtyDaysLater.setDate(todayDate.getDate() + 30);
+    
+    document.getElementById('taskStartDate').value = todayDate.toISOString().split('T')[0];
+    document.getElementById('taskEndDate').value = thirtyDaysLater.toISOString().split('T')[0];
+    document.getElementById('taskDate').value = todayDate.toISOString().split('T')[0];
+    
+    updateDashboard();
 });
 
 function setupEventListeners() {
@@ -43,6 +54,8 @@ function showTab(tabName, event) {
     if (tabName === 'dashboard') updateDashboard();
     else if (tabName === 'progress') renderProgressView();
     else if (tabName === 'classes') renderClasses();
+    else if (tabName === 'tasks') loadTasks();
+    else if (tabName === 'reports') loadReports();
 }
 
 // Modal management
@@ -779,4 +792,408 @@ document.querySelectorAll('.modal').forEach(modal => {
             closeModal(modal.id);
         }
     });
-}); 
+});
+
+// --- Daily Tasks Management ---
+let tasks = [];
+
+async function loadTasks() {
+    const taskList = document.getElementById('task-list');
+    if (!taskList) return;
+    
+    const dateInput = document.getElementById('taskDate');
+    const selectedDate = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
+    
+    try {
+        const response = await fetch(`${API_BASE}/tasks?date=${selectedDate}`);
+        if (!response.ok) throw new Error('Failed to load tasks');
+        tasks = await response.json();
+        renderTasks();
+    } catch (error) {
+        showAlert('Failed to load tasks: ' + error.message, 'danger');
+        tasks = [];
+        renderTasks();
+    }
+}
+
+function renderTasks() {
+    const taskList = document.getElementById('task-list');
+    if (!taskList) return;
+    
+    if (tasks.length === 0) {
+        taskList.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📋</div>
+                <h3>No tasks for selected date</h3>
+                <p>Click "Generate Tasks" to create daily tasks from your syllabus</p>
+            </div>`;
+        return;
+    }
+    
+    const container = document.createElement('div');
+    container.className = 'task-list';
+    
+    tasks.forEach(task => {
+        const taskCard = document.createElement('div');
+        taskCard.className = `task-card ${task.completed ? 'completed' : ''} priority-${task.priority}`;
+        taskCard.innerHTML = `
+            <div class="task-header">
+                <div class="task-info">
+                    <h4>${task.title}</h4>
+                    <div class="task-meta">
+                        <span class="task-subject">${task.subject ? task.subject.name : 'Unknown Subject'}</span>
+                        <span class="task-class">${task.class ? task.class.name : 'Unknown Class'}</span>
+                        <span class="task-priority priority-${task.priority}">${task.priority}</span>
+                    </div>
+                </div>
+                <div class="task-actions">
+                    <button class="btn-icon" onclick="toggleTaskComplete('${task._id}')" title="${task.completed ? 'Mark Incomplete' : 'Mark Complete'}">
+                        ${task.completed ? '✅' : '⭕'}
+                    </button>
+                    <button class="btn-icon" onclick="addTaskNote('${task._id}')" title="Add Note">📝</button>
+                </div>
+            </div>
+            ${task.notes ? `<div class="task-notes">📝 ${task.notes}</div>` : ''}
+        `;
+        container.appendChild(taskCard);
+    });
+    
+    taskList.innerHTML = '';
+    taskList.appendChild(container);
+}
+
+window.generateDailyTasks = async function() {
+    try {
+        const startDate = document.getElementById('taskStartDate').value;
+        const endDate = document.getElementById('taskEndDate').value;
+        
+        if (!startDate || !endDate) {
+            showAlert('Please select both start and end dates', 'error');
+            return;
+        }
+        
+        if (new Date(startDate) > new Date(endDate)) {
+            showAlert('Start date must be before end date', 'error');
+            return;
+        }
+        
+        showAlert('Generating daily tasks...', 'info');
+        
+        const response = await fetch(`${API_BASE}/tasks/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ startDate, endDate })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            showAlert(result.message, 'success');
+            loadTasks(); // Refresh the task list
+        } else {
+            const error = await response.json();
+            showAlert(error.message || 'Failed to generate tasks', 'error');
+        }
+    } catch (error) {
+        showAlert('Error generating tasks', 'error');
+        console.error('Error:', error);
+    }
+};
+
+window.toggleTaskComplete = async function(taskId) {
+    try {
+        const response = await fetch(`${API_BASE}/tasks/${taskId}/complete`, {
+            method: 'PATCH'
+        });
+        if (!response.ok) throw new Error('Failed to update task');
+        await loadTasks();
+    } catch (error) {
+        showAlert('Failed to update task: ' + error.message, 'danger');
+    }
+};
+
+window.addTaskNote = async function(taskId) {
+    const note = prompt('Enter a note for this task:');
+    if (!note) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/tasks/${taskId}/note`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: note })
+        });
+        if (!response.ok) throw new Error('Failed to add note');
+        await loadTasks();
+        showAlert('Note added successfully!', 'success');
+    } catch (error) {
+        showAlert('Failed to add note: ' + error.message, 'danger');
+    }
+};
+
+// --- Reports Management ---
+async function loadReports() {
+    const reportContent = document.getElementById('report-content');
+    if (!reportContent) return;
+    
+    reportContent.innerHTML = `
+        <div class="empty-state">
+            <div class="empty-state-icon">📊</div>
+            <h3>No reports generated yet</h3>
+            <p>Click "Weekly Report" or "Monthly Report" to generate analytics</p>
+        </div>`;
+}
+
+window.generateWeeklyReport = async function() {
+    try {
+        const response = await fetch(`${API_BASE}/reports/weekly`);
+        if (!response.ok) throw new Error('Failed to generate weekly report');
+        const report = await response.json();
+        renderWeeklyReport(report);
+    } catch (error) {
+        showAlert('Failed to generate weekly report: ' + error.message, 'danger');
+    }
+};
+
+window.generateMonthlyReport = async function() {
+    try {
+        const response = await fetch(`${API_BASE}/reports/monthly`);
+        if (!response.ok) throw new Error('Failed to generate monthly report');
+        const report = await response.json();
+        renderMonthlyReport(report);
+    } catch (error) {
+        showAlert('Failed to generate monthly report: ' + error.message, 'danger');
+    }
+};
+
+function renderWeeklyReport(report) {
+    const reportContent = document.getElementById('report-content');
+    if (!reportContent) return;
+    
+    reportContent.innerHTML = `
+        <div class="report-header">
+            <h3>📅 Weekly Report</h3>
+            <p>Generated: ${new Date(report.generatedAt).toLocaleString()}</p>
+            <p>Week: ${new Date(report.week.start).toLocaleDateString()} - ${new Date(report.week.end).toLocaleDateString()}</p>
+        </div>
+        
+        <div class="report-section">
+            <h4>👨‍🏫 Teacher Progress</h4>
+            <div class="report-grid">
+                ${(report.teacherProgress || []).map(t => `
+                    <div class="report-card">
+                        <h5>${t.teacherName || 'Unknown Teacher'}</h5>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar ${(t.avgCompletion || 0) >= 80 ? 'high' : (t.avgCompletion || 0) >= 40 ? 'medium' : 'low'}" style="width: ${t.avgCompletion || 0}%"></div>
+                        </div>
+                        <p>${Math.round(t.avgCompletion || 0)}% completion</p>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        
+        <div class="report-section">
+            <h4>📚 Topics Overview</h4>
+            <div class="report-stats">
+                <div class="stat-item">
+                    <span class="stat-value">${report.topics?.covered || 0}</span>
+                    <span class="stat-label">Topics Covered</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">${report.topics?.planned || 0}</span>
+                    <span class="stat-label">Topics Planned</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="report-section">
+            <h4>🏫 Class Progress</h4>
+            <div class="report-grid">
+                ${(report.classProgress || []).map(c => `
+                    <div class="report-card">
+                        <h5>${c.className || 'Unknown Class'}</h5>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar ${(c.avgCompletion || 0) >= 80 ? 'high' : (c.avgCompletion || 0) >= 40 ? 'medium' : 'low'}" style="width: ${c.avgCompletion || 0}%"></div>
+                        </div>
+                        <p>${Math.round(c.avgCompletion || 0)}% completion</p>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        
+        ${(report.upcomingDeadlines || []).length > 0 ? `
+            <div class="report-section">
+                <h4>⚠️ Upcoming Deadlines</h4>
+                <div class="deadline-list">
+                    ${report.upcomingDeadlines.map(d => `
+                        <div class="deadline-item">
+                            <strong>${d.title}</strong>
+                            <span class="deadline-date">Due: ${new Date(d.deadline).toLocaleDateString()}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        ` : ''}
+    `;
+}
+
+function renderMonthlyReport(report) {
+    const reportContent = document.getElementById('report-content');
+    if (!reportContent) return;
+    
+    reportContent.innerHTML = `
+        <div class="report-header">
+            <h3>📊 Monthly Report</h3>
+            <p>Generated: ${new Date(report.generatedAt).toLocaleString()}</p>
+            <p>Month: ${new Date(report.month.start).toLocaleDateString()} - ${new Date(report.month.end).toLocaleDateString()}</p>
+        </div>
+        
+        <div class="report-section">
+            <h4>🏢 Department Analytics</h4>
+            <div class="report-grid">
+                ${(report.departmentAnalytics || []).map(d => `
+                    <div class="report-card">
+                        <h5>${d._id || 'Unknown Department'}</h5>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar ${(d.avgProgress || 0) >= 80 ? 'high' : (d.avgProgress || 0) >= 40 ? 'medium' : 'low'}" style="width: ${d.avgProgress || 0}%"></div>
+                        </div>
+                        <p>${Math.round(d.avgProgress || 0)}% completion</p>
+                        <p>${d.totalSubjects || 0} subjects, ${d.subjectsBehind || 0} behind</p>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        
+        <div class="report-section">
+            <h4>👨‍🏫 Teacher Performance</h4>
+            <div class="report-grid">
+                ${(report.teacherPerformance || []).map(t => `
+                    <div class="report-card">
+                        <h5>${t.teacherName || 'Unknown Teacher'}</h5>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar ${(t.avgCompletion || 0) >= 80 ? 'high' : (t.avgCompletion || 0) >= 40 ? 'medium' : 'low'}" style="width: ${t.avgCompletion || 0}%"></div>
+                        </div>
+                        <p>${Math.round(t.avgCompletion || 0)}% completion</p>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        
+        <div class="report-section">
+            <h4>📈 Completion Projections</h4>
+            <div class="projection-list">
+                ${(report.projections || []).map(p => `
+                    <div class="projection-item">
+                        <strong>${p.subject || 'Unknown Subject'}</strong> (${p.class || 'No Class'})
+                        <div class="projection-details">
+                            <span>Current: ${Math.round(p.currentCompletion || 0)}%</span>
+                            ${p.projectedCompletionDate ? `<span>Projected: ${new Date(p.projectedCompletionDate).toLocaleDateString()}</span>` : '<span>No projection available</span>'}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        
+        <div class="report-section">
+            <h4>⚠️ Areas Needing Attention</h4>
+            <div class="attention-grid">
+                <div class="attention-section">
+                    <h5>Low Progress Subjects</h5>
+                    ${(report.areasNeedingAttention?.lowProgressSubjects || []).map(s => `
+                        <div class="attention-item">
+                            <strong>${s.subject || 'Unknown Subject'}</strong> (${s.code || 'No Code'}) - ${s.department || 'No Department'}
+                            <span class="progress-text">${Math.round(s.percentageComplete || 0)}%</span>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="attention-section">
+                    <h5>Overdue Topics</h5>
+                    ${(report.areasNeedingAttention?.overdueTopics || []).map(t => `
+                        <div class="attention-item">
+                            <strong>${t.title}</strong>
+                            <span class="overdue-date">Due: ${new Date(t.deadline).toLocaleDateString()}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+window.downloadWeeklyPDF = async function() {
+    try {
+        showAlert('Generating weekly PDF report...', 'info');
+        
+        const response = await fetch(`${API_BASE}/pdf/weekly`);
+        if (!response.ok) throw new Error('Failed to generate PDF');
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'weekly-syllabus-report.pdf';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showAlert('Weekly PDF report downloaded successfully!', 'success');
+    } catch (error) {
+        showAlert('Failed to download PDF: ' + error.message, 'error');
+        console.error('Error:', error);
+    }
+};
+
+window.downloadMonthlyPDF = async function() {
+    try {
+        showAlert('Generating monthly PDF report...', 'info');
+        
+        const response = await fetch(`${API_BASE}/pdf/monthly`);
+        if (!response.ok) throw new Error('Failed to generate PDF');
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'monthly-syllabus-report.pdf';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showAlert('Monthly PDF report downloaded successfully!', 'success');
+    } catch (error) {
+        showAlert('Failed to download PDF: ' + error.message, 'error');
+        console.error('Error:', error);
+    }
+};
+
+window.downloadDailyTaskPDF = async function() {
+    try {
+        const dateInput = document.getElementById('taskDate');
+        const selectedDate = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
+        
+        if (!selectedDate) {
+            showAlert('Please select a date first', 'error');
+            return;
+        }
+        
+        showAlert('Generating daily task PDF report...', 'info');
+        
+        const response = await fetch(`${API_BASE}/pdf/daily-tasks?date=${selectedDate}`);
+        if (!response.ok) throw new Error('Failed to generate PDF');
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `daily-tasks-${selectedDate}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showAlert('Daily task PDF report downloaded successfully!', 'success');
+    } catch (error) {
+        showAlert('Failed to download PDF: ' + error.message, 'error');
+        console.error('Error:', error);
+    }
+}; 

@@ -34,7 +34,7 @@ services:
     networks:
       - syllabus-tracker-network
     volumes:
-      - ./backend:/app/src
+      - ./frontend/aps-letterhead.pdf:/app/frontend/aps-letterhead.pdf
 
   frontend:
     build:
