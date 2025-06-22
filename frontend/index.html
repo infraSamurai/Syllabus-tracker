@@ -78,8 +78,11 @@
         <!-- Classes Tab -->
         <div id="classes" class="tab-content">
             <div class="header-with-button">
-                <h2>All Classes</h2>
+                <h2>🏫 All Classes</h2>
                 <button class="btn btn-primary" onclick="openClassModal()">+ Add Class</button>
+            </div>
+            <div class="class-controls">
+                <input type="text" id="class-search-input" class="form-input" placeholder="Search for a class..." onkeyup="renderClasses()">
             </div>
             <div id="class-list" class="grid-container"></div>
         </div>
@@ -95,7 +98,7 @@
                         <label>to:</label>
                         <input type="date" id="taskEndDate" class="form-input">
                     </div>
-                    <button class="btn btn-secondary" onclick="generateDailyTasks()">🔄 Generate Tasks</button>
+                    <button class="btn btn-secondary" onclick="generateDailyTasks()">🔄 Generate Next Topics</button>
                     <input type="date" id="taskDate" class="form-input" onchange="loadTasks()" placeholder="View tasks for date">
                     <button class="btn btn-primary" onclick="downloadDailyTaskPDF()">📄 Download PDF</button>
                 </div>
@@ -104,7 +107,7 @@
                 <div class="empty-state">
                     <div class="empty-state-icon">📋</div>
                     <h3>No tasks for today</h3>
-                    <p>Click "Generate Tasks" to create daily tasks from your syllabus</p>
+                    <p>Click "Generate Next Topics" to create daily tasks for the next incomplete topics in each subject</p>
                 </div>
             </div>
         </div>
@@ -282,23 +285,24 @@
     <div id="classModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="modal-title">Add New Class</div>
+                <div class="modal-title-icon">🏫</div>
+                <div id="classModalTitle" class="modal-title">Add New Class</div>
                 <button class="modal-close" onclick="closeModal('classModal')">×</button>
             </div>
             
-            <form id="classForm">
+            <form id="classForm" class="modal-form">
                 <div class="form-group">
-                    <label class="form-label">Class Name *</label>
-                    <input type="text" class="form-input" id="className" required>
+                    <label for="className" class="form-label">Class Name *</label>
+                    <input type="text" id="className" class="form-input" placeholder="e.g., Grade 10A" required>
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">Description</label>
-                    <textarea class="form-textarea" id="classDescription" rows="3"></textarea>
+                    <label for="classDescription" class="form-label">Description</label>
+                    <textarea id="classDescription" class="form-textarea" placeholder="Provide a brief description of the class..."></textarea>
                 </div>
                 
-                <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <button type="submit" class="btn btn-primary">✅ Add Class</button>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">✅ Save Class</button>
                     <button type="button" class="btn btn-danger" onclick="closeModal('classModal')">❌ Cancel</button>
                 </div>
             </form>

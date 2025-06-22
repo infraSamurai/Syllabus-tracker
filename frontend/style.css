@@ -224,6 +224,17 @@ body {
     box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
 }
 
+.btn-warning {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: white;
+    box-shadow: 0 5px 15px rgba(245, 158, 11, 0.4);
+}
+
+.btn-warning:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(245, 158, 11, 0.6);
+}
+
 .btn-small {
     padding: 8px 16px;
     font-size: 0.8rem;
@@ -1502,6 +1513,12 @@ body {
     border-left: 4px solid #10b981;
 }
 
+.task-card.overdue {
+    border-left: 4px solid #ff4757;
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.05), rgba(238, 90, 82, 0.05));
+    box-shadow: 0 4px 12px rgba(255, 71, 87, 0.1);
+}
+
 .task-header {
     display: flex;
     justify-content: space-between;
@@ -1794,10 +1811,230 @@ body {
 @media (max-width: 768px) {
     .header-with-button {
         flex-direction: column;
+        gap: 15px;
         align-items: stretch;
     }
     
     .header-with-button h2 {
         text-align: center;
     }
+}
+
+/* Overdue Topics Alert Styles */
+.overdue-alert {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    border: 2px solid #ff4757;
+    color: white;
+    margin-bottom: 20px;
+    animation: slideInDown 0.5s ease-out;
+}
+
+.overdue-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+
+.overdue-icon {
+    font-size: 1.5rem;
+    animation: pulse 2s infinite;
+}
+
+.overdue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.overdue-item {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 12px;
+    border-left: 4px solid #ff4757;
+}
+
+.overdue-subject {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 4px;
+}
+
+.overdue-topic {
+    font-size: 0.95rem;
+    margin-bottom: 6px;
+    opacity: 0.9;
+}
+
+.overdue-deadline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+}
+
+.overdue-days {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.overdue-date {
+    opacity: 0.8;
+}
+
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+/* Class Management Styles */
+.class-controls {
+    margin-bottom: 20px;
+}
+
+#class-search-input {
+    width: 100%;
+    max-width: 400px;
+    padding: 12px 20px;
+    font-size: 1rem;
+    background-color: #fff;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+#class-search-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+.class-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+}
+
+.class-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+    border-color: #667eea;
+}
+
+.class-card-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.class-card-icon {
+    font-size: 1.8rem;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.class-card-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #333;
+}
+
+.class-card-body {
+    flex-grow: 1;
+    margin-bottom: 16px;
+    color: #666;
+    font-size: 0.95rem;
+}
+
+.class-card-stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #f3f4f6;
+}
+
+.class-card-stats .stat {
+    text-align: center;
+}
+
+.class-card-stats .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #667eea;
+}
+
+.class-card-stats .stat-label {
+    font-size: 0.8rem;
+    color: #666;
+    text-transform: uppercase;
+}
+
+.class-card-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.class-card-actions .btn {
+    flex: 1;
+}
+
+.class-card-actions .btn .icon {
+    margin-right: 6px;
+}
+
+/* Updated Modal Styles */
+.modal-form {
+    padding: 10px 0;
+}
+
+.modal-header .modal-title-icon {
+    font-size: 1.5rem;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.modal-actions .btn {
+    flex: 1;
 }

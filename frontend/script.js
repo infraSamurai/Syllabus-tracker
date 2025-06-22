@@ -91,20 +91,60 @@ async function loadData() {
 function renderClasses() {
     const classList = document.getElementById('class-list');
     if (!classList) return;
+    
     classList.innerHTML = '';
+    
     if (classes.length === 0) {
-        classList.innerHTML = '<div class="empty-state"><p>No classes found. Add one to get started!</p></div>';
+        classList.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">🏫</div>
+                <h3>No classes found</h3>
+                <p>Click "Add Class" to create a new class and assign subjects to it.</p>
+            </div>`;
         return;
     }
-    classes.forEach(cls => {
+
+    const classSearchInput = document.getElementById('class-search-input');
+    const searchTerm = classSearchInput ? classSearchInput.value.toLowerCase() : '';
+
+    const filteredClasses = classes.filter(cls => cls.name.toLowerCase().includes(searchTerm));
+
+    if (filteredClasses.length === 0) {
+        classList.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">🧐</div>
+                <h3>No classes match your search</h3>
+                <p>Try a different search term or add a new class.</p>
+            </div>`;
+        return;
+    }
+
+    filteredClasses.forEach(cls => {
+        const subjectCount = subjects.filter(s => s.class && s.class._id === cls._id).length;
+
         const card = document.createElement('div');
-        card.className = 'card';
+        card.className = 'class-card';
         card.innerHTML = `
-            <h4>${cls.name}</h4>
-            <p>${cls.description || 'No description'}</p>
-            <div class="card-actions">
-                <button class="btn btn-secondary" onclick="openClassModal('${cls._id}')">Edit</button>
-                <button class="btn btn-danger" onclick="deleteClass('${cls._id}')">Delete</button>
+            <div class="class-card-header">
+                <div class="class-card-icon">🏫</div>
+                <div class="class-card-title">${cls.name}</div>
+            </div>
+            <div class="class-card-body">
+                <p>${cls.description || 'No description provided.'}</p>
+            </div>
+            <div class="class-card-stats">
+                <div class="stat">
+                    <span class="stat-value">${subjectCount}</span>
+                    <span class="stat-label">Subjects</span>
+                </div>
+            </div>
+            <div class="class-card-actions">
+                <button class="btn btn-secondary btn-small" onclick="openClassModal('${cls._id}')">
+                    <span class="icon">✏️</span> Edit
+                </button>
+                <button class="btn btn-danger btn-small" onclick="deleteClass('${cls._id}')">
+                    <span class="icon">🗑️</span> Delete
+                </button>
             </div>
         `;
         classList.appendChild(card);
@@ -114,7 +154,7 @@ function renderClasses() {
 window.openClassModal = function(classId = null) {
     const form = document.getElementById('classForm');
     form.reset();
-    const modalTitle = document.querySelector('#classModal .modal-title');
+    const modalTitle = document.getElementById('classModalTitle');
     
     if (classId) {
         const cls = classes.find(c => c._id === classId);
@@ -270,6 +310,7 @@ window.deleteSubject = async function(subjectId) {
     try {
         await fetch(`${API_BASE}/syllabus/subjects/${subjectId}`, { method: 'DELETE' });
         await loadData();
+        await loadTasks(); // Refresh the task list
         renderAll();
         showAlert('Subject deleted!', 'success');
     } catch (e) {
@@ -545,6 +586,7 @@ window.deleteChapter = async(chapterId) => {
     try {
         await fetch(`${API_BASE}/syllabus/chapters/${chapterId}`, { method: 'DELETE' });
         await loadData();
+        await loadTasks(); // Refresh the task list
         renderAll();
         showAlert('Chapter deleted!', 'success');
     } catch (e) {
@@ -578,6 +620,7 @@ window.deleteTopic = async (topicId) => {
     try {
         await fetch(`${API_BASE}/syllabus/topics/${topicId}`, { method: 'DELETE' });
         await loadData();
+        await loadTasks(); // Refresh the task list
         renderAll();
         showAlert('Topic deleted!', 'success');
     } catch (e) {
@@ -834,16 +877,20 @@ function renderTasks() {
     container.className = 'task-list';
     
     tasks.forEach(task => {
+        // Check if task is overdue based on notes (which contain deadline info)
+        const isOverdue = checkIfTaskIsOverdue(task);
+        
         const taskCard = document.createElement('div');
-        taskCard.className = `task-card ${task.completed ? 'completed' : ''} priority-${task.priority}`;
+        taskCard.className = `task-card ${task.completed ? 'completed' : ''} priority-${task.priority} ${isOverdue ? 'overdue' : ''}`;
         taskCard.innerHTML = `
             <div class="task-header">
                 <div class="task-info">
-                    <h4>${task.title}</h4>
+                    <h4>${task.title} ${isOverdue ? '⚠️' : ''}</h4>
                     <div class="task-meta">
                         <span class="task-subject">${task.subject ? task.subject.name : 'Unknown Subject'}</span>
                         <span class="task-class">${task.class ? task.class.name : 'Unknown Class'}</span>
                         <span class="task-priority priority-${task.priority}">${task.priority}</span>
+                        ${isOverdue ? '<span class="task-overdue-badge">OVERDUE</span>' : ''}
                     </div>
                 </div>
                 <div class="task-actions">
@@ -862,6 +909,22 @@ function renderTasks() {
     taskList.appendChild(container);
 }
 
+function checkIfTaskIsOverdue(task) {
+    // Extract deadline from task notes (format: "Deadline: MM/DD/YYYY")
+    if (task.notes && task.notes.includes('Deadline:')) {
+        const deadlineMatch = task.notes.match(/Deadline:\s*([^\s]+)/);
+        if (deadlineMatch) {
+            const deadlineDate = new Date(deadlineMatch[1]);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            deadlineDate.setHours(0, 0, 0, 0);
+            
+            return deadlineDate < today;
+        }
+    }
+    return false;
+}
+
 window.generateDailyTasks = async function() {
     try {
         const startDate = document.getElementById('taskStartDate').value;
@@ -877,7 +940,7 @@ window.generateDailyTasks = async function() {
             return;
         }
         
-        showAlert('Generating daily tasks...', 'info');
+        showAlert('Generating daily tasks for next incomplete topics...', 'info');
         
         const response = await fetch(`${API_BASE}/tasks/generate`, {
             method: 'POST',
@@ -887,7 +950,15 @@ window.generateDailyTasks = async function() {
         
         if (response.ok) {
             const result = await response.json();
+            
+            // Show the main success message
             showAlert(result.message, 'success');
+            
+            // If there are overdue topics, show them prominently
+            if (result.overdueCount > 0) {
+                showOverdueTopicsAlert(result.overdueTopics, result.overdueCount);
+            }
+            
             loadTasks(); // Refresh the task list
         } else {
             const error = await response.json();
@@ -898,6 +969,42 @@ window.generateDailyTasks = async function() {
         console.error('Error:', error);
     }
 };
+
+function showOverdueTopicsAlert(overdueTopics, count) {
+    const alertContainer = document.getElementById('alert-container');
+    if (!alertContainer) return;
+    
+    const overdueAlert = document.createElement('div');
+    overdueAlert.className = 'alert alert-warning overdue-alert';
+    overdueAlert.innerHTML = `
+        <div class="overdue-header">
+            <span class="overdue-icon">⚠️</span>
+            <strong>${count} Overdue Topic${count > 1 ? 's' : ''} Found!</strong>
+            <button class="alert-close" onclick="this.parentElement.parentElement.remove()">×</button>
+        </div>
+        <div class="overdue-list">
+            ${overdueTopics.map(topic => `
+                <div class="overdue-item">
+                    <div class="overdue-subject">${topic.subject} (${topic.class})</div>
+                    <div class="overdue-topic">${topic.topic}</div>
+                    <div class="overdue-deadline">
+                        <span class="overdue-days">${topic.daysOverdue} day${topic.daysOverdue > 1 ? 's' : ''} overdue</span>
+                        <span class="overdue-date">Due: ${new Date(topic.deadline).toLocaleDateString()}</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    
+    alertContainer.appendChild(overdueAlert);
+    
+    // Auto-remove after 10 seconds
+    setTimeout(() => {
+        if (overdueAlert.parentElement) {
+            overdueAlert.remove();
+        }
+    }, 10000);
+}
 
 window.toggleTaskComplete = async function(taskId) {
     try {

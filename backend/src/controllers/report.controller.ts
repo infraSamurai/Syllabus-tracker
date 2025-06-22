@@ -158,19 +158,53 @@ export class ReportController {
 
       // Syllabus completion projections (estimate based on current rate)
       // For each subject, estimate completion date based on current progress rate
-      const subjects = await Subject.find().populate('class');
+      const subjects = await Subject.find().populate('class').populate({
+        path: 'chapters',
+        populate: {
+          path: 'topics'
+        }
+      });
       const projections = [];
+
       for (const subject of subjects) {
-        const progress = await Progress.findOne({ subject: subject._id });
-        if (!progress) continue;
-        const daysElapsed = (new Date().getTime() - subject.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-        const rate = progress.percentageComplete / (daysElapsed || 1);
-        const daysToComplete = rate > 0 ? (100 - progress.percentageComplete) / rate : null;
+        if (!subject.chapters || subject.chapters.length === 0) continue;
+
+        let completedTopicsCount = 0;
+        let totalTopicsCount = 0;
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+        for (const chapter of subject.chapters as any[]) {
+          totalTopicsCount += chapter.topics.length;
+          for (const topic of chapter.topics as any) {
+            if (topic.completed && topic.completedAt && new Date(topic.completedAt) > thirtyDaysAgo) {
+              completedTopicsCount++;
+            }
+          }
+        }
+
+        const overallProgress = await Progress.findOne({ subject: subject._id });
+        if (!overallProgress) continue;
+        
+        const topicsCompletedInLast30Days = completedTopicsCount;
+        const completionRatePerDay = topicsCompletedInLast30Days / 30; // Topics per day
+
+        let projectedCompletionDate = null;
+        if (completionRatePerDay > 0) {
+          const remainingTopics = totalTopicsCount - (overallProgress.completedTopics || 0);
+          if (remainingTopics > 0) {
+            const daysToComplete = remainingTopics / completionRatePerDay;
+            projectedCompletionDate = new Date(Date.now() + daysToComplete * 24 * 60 * 60 * 1000);
+          } else {
+            // Already completed
+            projectedCompletionDate = new Date();
+          }
+        }
+
         projections.push({
           subject: subject.name,
-          class: typeof subject.class === 'object' && subject.class !== null && 'name' in subject.class ? subject.class.name : undefined,
-          currentCompletion: progress.percentageComplete,
-          projectedCompletionDate: daysToComplete !== null ? new Date(Date.now() + daysToComplete * 24 * 60 * 60 * 1000) : null
+          class: (subject.class as any)?.name || 'N/A',
+          currentCompletion: overallProgress.percentageComplete,
+          projectedCompletionDate
         });
       }
 

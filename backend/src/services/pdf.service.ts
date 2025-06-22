@@ -350,13 +350,25 @@ export class PDFService {
 
   async generateDailyTaskPDF(date: string): Promise<Buffer> {
     try {
-      // Load the letterhead template
-      const templateBytes = await fs.readFile(this.templatePath);
-      const pdfDoc = await PDFDocument.load(templateBytes);
+      let pdfDoc: PDFDocument;
       
-      // Get the first page
+      // Try to load the letterhead template, fallback to new document if not found
+      try {
+        const templateBytes = await fs.readFile(this.templatePath);
+        pdfDoc = await PDFDocument.load(templateBytes);
+      } catch (templateError) {
+        console.warn('Template file not found, creating new PDF document:', templateError);
+        pdfDoc = await PDFDocument.create();
+      }
+      
+      // Get the first page (or create one if using new document)
+      let page;
       const pages = pdfDoc.getPages();
-      const page = pages[0];
+      if (pages.length > 0) {
+        page = pages[0];
+      } else {
+        page = pdfDoc.addPage([595.28, 841.89]); // A4 size
+      }
       
       // Get font
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -489,7 +501,7 @@ export class PDFService {
         
         // High Priority Tasks
         if (highPriorityTasks.length > 0) {
-          page.drawText('🔴 HIGH PRIORITY', {
+          page.drawText('HIGH PRIORITY', {
             x: 50,
             y: yPosition,
             size: 14,
@@ -505,7 +517,7 @@ export class PDFService {
               yPosition = height - 50;
             }
             
-            const status = task.completed ? '✅ COMPLETED' : '⏳ PENDING';
+            const status = task.completed ? 'COMPLETED' : 'PENDING';
             const statusColor = task.completed ? rgb(0, 0.6, 0) : rgb(0.8, 0.4, 0);
             
             const subjectName = task.subject && typeof task.subject === 'object' && 'name' in task.subject 
@@ -552,7 +564,7 @@ export class PDFService {
             yPosition = height - 50;
           }
           
-          page.drawText('🟡 MEDIUM PRIORITY', {
+          page.drawText('MEDIUM PRIORITY', {
             x: 50,
             y: yPosition,
             size: 14,
@@ -568,7 +580,7 @@ export class PDFService {
               yPosition = height - 50;
             }
             
-            const status = task.completed ? '✅ COMPLETED' : '⏳ PENDING';
+            const status = task.completed ? 'COMPLETED' : 'PENDING';
             const statusColor = task.completed ? rgb(0, 0.6, 0) : rgb(0.8, 0.4, 0);
             
             const subjectName = task.subject && typeof task.subject === 'object' && 'name' in task.subject 
@@ -615,7 +627,7 @@ export class PDFService {
             yPosition = height - 50;
           }
           
-          page.drawText('🟢 LOW PRIORITY', {
+          page.drawText('LOW PRIORITY', {
             x: 50,
             y: yPosition,
             size: 14,
@@ -631,7 +643,7 @@ export class PDFService {
               yPosition = height - 50;
             }
             
-            const status = task.completed ? '✅ COMPLETED' : '⏳ PENDING';
+            const status = task.completed ? 'COMPLETED' : 'PENDING';
             const statusColor = task.completed ? rgb(0, 0.6, 0) : rgb(0.8, 0.4, 0);
             
             const subjectName = task.subject && typeof task.subject === 'object' && 'name' in task.subject 
@@ -678,6 +690,11 @@ export class PDFService {
       
     } catch (error) {
       console.error('Error generating daily task PDF:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        date: date
+      });
       throw new Error('Failed to generate daily task PDF report');
     }
   }
