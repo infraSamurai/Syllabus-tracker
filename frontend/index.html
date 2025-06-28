@@ -64,7 +64,7 @@
                     </a>
                     <a href="#" class="nav-item" onclick="showPage('subjects')">
                         <span class="nav-item-icon">📚</span>
-                        <span>Subjects & KPIs</span>
+                        <span>Subject Management & KPIs</span>
                     </a>
                     <a href="#" class="nav-item" onclick="showPage('analytics')">
                         <span class="nav-item-icon">📈</span>
@@ -81,7 +81,7 @@
                     <div class="nav-section-title">Reports</div>
                     <a href="#" class="nav-item" onclick="showPage('report-builder')">
                         <span class="nav-item-icon">🛠️</span>
-                        <span>Report Builder</span>
+                        <span>Custom Report Builder</span>
                     </a>
                     <a href="#" class="nav-item" onclick="showPage('scheduled-reports')">
                         <span class="nav-item-icon">⏰</span>
@@ -97,7 +97,7 @@
                     <div class="nav-section-title">Management</div>
                     <a href="#" class="nav-item" onclick="showPage('classes')">
                         <span class="nav-item-icon">🏫</span>
-                        <span>Classes</span>
+                        <span>Class Management</span>
                     </a>
                     <a href="#" class="nav-item" onclick="showPage('syllabus-management')">
                         <span class="nav-item-icon">🗂️</span>
@@ -313,29 +313,29 @@
                             <button class="modal-close" onclick="closeModal('addChapterModal')">×</button>
                         </div>
                         <div class="modal-body">
-                            <form id="chapterForm" onsubmit="saveChapter(event)">
+                            <form id="chapterForm">
+                                <input type="hidden" id="chapterSubjectId">
                                 <div class="form-group">
-                                    <label class="form-label">Chapter Title</label>
-                                    <input type="text" class="form-input" id="chapterTitle" required>
+                                    <label class="form-label">Chapter Title *</label>
+                                    <input type="text" class="form-input" name="title" required placeholder="e.g., Algebra Basics">
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label">Chapter Number</label>
-                                    <input type="number" class="form-input" id="chapterNumber" required>
+                                    <label class="form-label">Chapter Number *</label>
+                                    <input type="number" class="form-input" name="number" required min="1" placeholder="e.g., 1">
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label">Deadline</label>
-                                    <input type="date" class="form-input" id="chapterDeadline">
+                                    <label class="form-label">Deadline *</label>
+                                    <input type="date" class="form-input" name="deadline" required>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Description</label>
-                                    <input type="text" class="form-input" id="chapterDescription">
-                                </div>
-                                <input type="hidden" id="chapterSubjectId">
-                                <div class="modal-footer">
-                                    <button class="btn btn-secondary" type="button" onclick="closeModal('addChapterModal')">Cancel</button>
-                                    <button class="btn btn-primary" type="submit">Save Chapter</button>
+                                    <textarea class="form-textarea" name="description" rows="3" placeholder="Chapter objectives and overview..."></textarea>
                                 </div>
                             </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onclick="closeModal('addChapterModal')">Cancel</button>
+                            <button class="btn btn-primary" onclick="saveChapter()">Save Chapter</button>
                         </div>
                     </div>
                 </div>
@@ -349,24 +349,24 @@
                         </div>
                         <div class="modal-body">
                             <form id="topicForm">
-                                <div class="form-group">
-                                    <label class="form-label">Topic Title</label>
-                                    <input type="text" class="form-input" id="topicTitle" required>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Deadline</label>
-                                    <input type="date" class="form-input" id="topicDeadline">
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Notes</label>
-                                    <input type="text" class="form-input" id="topicNotes">
-                                </div>
                                 <input type="hidden" id="topicChapterId">
-                                <div class="modal-footer">
-                                    <button class="btn btn-secondary" type="button" onclick="closeModal('addTopicModal')">Cancel</button>
-                                    <button class="btn btn-primary" type="submit">Save Topic</button>
+                                <div class="form-group">
+                                    <label class="form-label">Topic Title *</label>
+                                    <input type="text" class="form-input" name="title" required placeholder="e.g., Linear Equations">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Deadline *</label>
+                                    <input type="date" class="form-input" name="deadline" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Teaching Notes</label>
+                                    <textarea class="form-textarea" name="notes" rows="4" placeholder="Key concepts, teaching methods, resources..."></textarea>
                                 </div>
                             </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onclick="closeModal('addTopicModal')">Cancel</button>
+                            <button class="btn btn-primary" onclick="saveTopic()">Save Topic</button>
                         </div>
                     </div>
                 </div>

@@ -89,9 +89,10 @@ function showPage(pageId) {
             item.classList.add('active');
         }
     });
+    // Update page title
     const titles = {
         'dashboard': 'Dashboard',
-        'subjects': 'Subjects & KPIs',
+        'subjects': 'Subject Management & KPIs',
         'analytics': 'Analytics & Insights',
         'tasks': 'Daily Tasks',
         'report-builder': 'Custom Report Builder',
@@ -2249,4 +2250,477 @@ window.selectSyllabusSubject = function(subjectId) {
     selectedSyllabusSubjectId = subjectId;
     // ... (rest of the function if needed)
 }
+
+// Subject Management Functions
+async function loadSubjectsPage() {
+    const container = document.getElementById('subject-kpi-list');
+    if (!container) return;
+    
+    if (state.subjects.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 60px 20px;">
+                <h3 style="color: var(--gray-500);">No subjects found</h3>
+                <p style="color: var(--gray-400); margin-top: 8px;">Create your first subject to get started</p>
+                <button class="btn btn-primary" style="margin-top: 16px;" onclick="openModal('addSubjectModal')">
+                    + Add First Subject
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    for (const subject of state.subjects) {
+        const subjectKPIs = state.kpis.filter(k => k.subject === subject._id);
+        const kpiStatus = subjectKPIs.length > 0 ? 
+            (subjectKPIs.every(k => k.achieved) ? 'achieved' : 
+             subjectKPIs.some(k => k.achieved) ? 'pending' : 'failed') : 'pending';
+        
+        let totalTopics = 0;
+        let completedTopics = 0;
+        
+        if (subject.chapters) {
+            subject.chapters.forEach(chapter => {
+                if (chapter.topics) {
+                    totalTopics += chapter.topics.length;
+                    completedTopics += chapter.topics.filter(t => t.completed).length;
+                }
+            });
+        }
+        
+        const progress = totalTopics > 0 ? (completedTopics / totalTopics) * 100 : 0;
+        
+        const subjectCard = document.createElement('div');
+        subjectCard.className = 'card';
+        subjectCard.style.marginBottom = '24px';
+        
+        subjectCard.innerHTML = `
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">${subject.name} - ${subject.class?.name || 'No Class'}</h3>
+                    <div style="color: var(--gray-600); font-size: 14px; margin-top: 4px;">
+                        Code: ${subject.code} | Department: ${subject.department} | Deadline: ${new Date(subject.deadline).toLocaleDateString()}
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary btn-sm" onclick="editSubject('${subject._id}')">Edit</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteSubject('${subject._id}')">Delete</button>
+                </div>
+            </div>
+            
+            <div style="padding: 20px;">
+                <!-- KPIs Section -->
+                <div style="margin-bottom: 24px;">
+                    <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 16px;">
+                        <h4 style="font-size: 16px; font-weight: 600;">Key Performance Indicators</h4>
+                        <div class="kpi-status ${kpiStatus}" style="margin-left: auto;">${kpiStatus === 'achieved' ? '✓' : kpiStatus === 'pending' ? '⏱' : '✗'}</div>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-header">
+                            <span class="progress-label">Overall Progress</span>
+                            <span class="progress-value">${Math.round(progress)}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="kpi-items" style="margin-top: 16px;">
+                        ${subjectKPIs.map(kpi => `
+                            <div class="kpi-item">
+                                <input type="checkbox" class="kpi-checkbox" 
+                                       ${kpi.achieved ? 'checked' : ''} 
+                                       onchange="updateKPI('${kpi._id}', this.checked)">
+                                <span class="kpi-label">${kpi.title}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <button class="btn btn-secondary btn-sm" style="margin-top: 12px;" onclick="openAddKPIModal('${subject._id}')">
+                        + Add KPI
+                    </button>
+                </div>
+                
+                <!-- Chapters Section -->
+                <div>
+                    <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 16px;">
+                        <h4 style="font-size: 16px; font-weight: 600;">Chapters (${subject.chapters?.length || 0})</h4>
+                        <button class="btn btn-primary btn-sm" onclick="openAddChapterModal('${subject._id}')">
+                            + Add Chapter
+                        </button>
+                    </div>
+                    
+                    <div class="chapters-list">
+                        ${renderChaptersForManagement(subject.chapters || [])}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(subjectCard);
+    }
+}
+
+function renderChaptersForManagement(chapters) {
+    if (chapters.length === 0) {
+        return '<p style="color: var(--gray-500); text-align: center; padding: 20px;">No chapters added yet</p>';
+    }
+    
+    return chapters.sort((a, b) => a.number - b.number).map(chapter => {
+        const allCompleted = chapter.topics?.length > 0 && chapter.topics.every(t => t.completed);
+        
+        return `
+            <div style="border: 1px solid var(--gray-200); border-radius: 8px; padding: 16px; margin-bottom: 12px; ${allCompleted ? 'background: var(--gray-50);' : ''}">
+                <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 12px;">
+                    <div>
+                        <h5 style="font-weight: 600; margin: 0;">Chapter ${chapter.number}: ${chapter.title}</h5>
+                        <div style="font-size: 13px; color: var(--gray-600); margin-top: 4px;">
+                            Deadline: ${new Date(chapter.deadline).toLocaleDateString()} | 
+                            Topics: ${chapter.topics?.length || 0} | 
+                            Status: ${chapter.status}
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-icon" onclick="editChapter('${chapter._id}')">✏️</button>
+                        <button class="btn-icon" onclick="deleteChapter('${chapter._id}')">🗑️</button>
+                    </div>
+                </div>
+                
+                <div style="margin-left: 20px;">
+                    ${renderTopicsForManagement(chapter.topics || [])}
+                    <button class="btn btn-secondary btn-sm" style="margin-top: 8px;" onclick="openAddTopicModal('${chapter._id}')">
+                        + Add Topic
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderTopicsForManagement(topics) {
+    if (topics.length === 0) {
+        return '<p style="color: var(--gray-500); font-size: 14px;">No topics added yet</p>';
+    }
+    
+    return topics.map(topic => {
+        const isOverdue = !topic.completed && new Date(topic.deadline) < new Date();
+        
+        return `
+            <div style="display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 6px; margin-bottom: 8px; background: ${topic.completed ? 'var(--gray-50)' : 'white'};">
+                <input type="checkbox" ${topic.completed ? 'checked' : ''} 
+                       onchange="toggleTopicCompletion('${topic._id}')">
+                <div style="flex: 1;">
+                    <span style="${topic.completed ? 'text-decoration: line-through; color: var(--gray-500);' : ''} ${isOverdue ? 'color: var(--danger);' : ''}">
+                        ${topic.title}
+                    </span>
+                    <div style="font-size: 12px; color: var(--gray-600);">
+                        Due: ${new Date(topic.deadline).toLocaleDateString()} ${isOverdue ? '(Overdue!)' : ''}
+                    </div>
+                </div>
+                <div style="display: flex; gap: 4px;">
+                    <button class="btn-icon" onclick="editTopic('${topic._id}')">✏️</button>
+                    <button class="btn-icon" onclick="deleteTopic('${topic._id}')">🗑️</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Chapter and Topic Management Functions
+async function saveChapter() {
+    try {
+        const form = document.getElementById('chapterForm');
+        const formData = new FormData(form);
+        
+        const chapterData = {
+            subject: document.getElementById('chapterSubjectId').value,
+            title: formData.get('title'),
+            number: parseInt(formData.get('number')),
+            deadline: formData.get('deadline'),
+            description: formData.get('description')
+        };
+        
+        if (!chapterData.title || !chapterData.number || !chapterData.deadline) {
+            showAlert('Please fill in all required fields', 'warning');
+            return;
+        }
+        
+        const response = await fetch(`${API_BASE}/syllabus/chapters`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(chapterData)
+        });
+        
+        if (!response.ok) throw new Error('Failed to save chapter');
+        
+        closeModal('addChapterModal');
+        showAlert('Chapter created successfully!', 'success');
+        await loadSubjects();
+        loadPageContent(state.currentPage);
+    } catch (error) {
+        console.error('Error saving chapter:', error);
+        showAlert('Failed to save chapter', 'danger');
+    }
+}
+
+async function saveTopic() {
+    try {
+        const form = document.getElementById('topicForm');
+        const formData = new FormData(form);
+        
+        const topicData = {
+            chapter: document.getElementById('topicChapterId').value,
+            title: formData.get('title'),
+            deadline: formData.get('deadline'),
+            notes: formData.get('notes')
+        };
+        
+        if (!topicData.title || !topicData.deadline) {
+            showAlert('Please fill in all required fields', 'warning');
+            return;
+        }
+        
+        const response = await fetch(`${API_BASE}/syllabus/topics`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(topicData)
+        });
+        
+        if (!response.ok) throw new Error('Failed to save topic');
+        
+        closeModal('addTopicModal');
+        showAlert('Topic created successfully!', 'success');
+        await loadSubjects();
+        loadPageContent(state.currentPage);
+    } catch (error) {
+        console.error('Error saving topic:', error);
+        showAlert('Failed to save topic', 'danger');
+    }
+}
+
+async function toggleTopicCompletion(topicId) {
+    try {
+        const response = await fetch(`${API_BASE}/syllabus/topics/${topicId}/toggle`, {
+            method: 'PATCH'
+        });
+        
+        if (!response.ok) throw new Error('Failed to update topic');
+        
+        await loadSubjects();
+        loadPageContent(state.currentPage);
+        showAlert('Topic status updated!', 'success');
+    } catch (error) {
+        console.error('Error updating topic:', error);
+        showAlert('Failed to update topic status', 'danger');
+    }
+}
+
+// Modal Functions
+function openAddChapterModal(subjectId) {
+    document.getElementById('chapterSubjectId').value = subjectId;
+    openModal('addChapterModal');
+}
+
+function openAddTopicModal(chapterId) {
+    document.getElementById('topicChapterId').value = chapterId;
+    openModal('addTopicModal');
+}
+
+async function deleteChapter(chapterId) {
+    if (!confirm('Are you sure you want to delete this chapter and all its topics?')) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/syllabus/chapters/${chapterId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) throw new Error('Failed to delete chapter');
+        
+        showAlert('Chapter deleted successfully!', 'success');
+        await loadSubjects();
+        loadPageContent(state.currentPage);
+    } catch (error) {
+        console.error('Error deleting chapter:', error);
+        showAlert('Failed to delete chapter', 'danger');
+    }
+}
+
+async function deleteTopic(topicId) {
+    if (!confirm('Are you sure you want to delete this topic?')) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/syllabus/topics/${topicId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) throw new Error('Failed to delete topic');
+        
+        showAlert('Topic deleted successfully!', 'success');
+        await loadSubjects();
+        loadPageContent(state.currentPage);
+    } catch (error) {
+        console.error('Error deleting topic:', error);
+        showAlert('Failed to delete topic', 'danger');
+    }
+}
+
+// Global function exports
+window.showPage = showPage;
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.saveSubject = saveSubject;
+window.saveClass = saveClass;
+window.saveChapter = saveChapter;
+window.saveTopic = saveTopic;
+window.saveTask = saveTask;
+window.saveMilestone = saveMilestone;
+window.saveScheduledReport = saveScheduledReport;
+window.deleteSubject = deleteSubject;
+window.deleteClass = deleteClass;
+window.deleteChapter = deleteChapter;
+window.deleteTopic = deleteTopic;
+window.editSubject = editSubject;
+window.editClass = editClass;
+window.editChapter = editChapter;
+window.editTopic = editTopic;
+window.toggleTopicCompletion = toggleTopicCompletion;
+window.updateKPI = updateKPI;
+window.filterClasses = filterClasses;
+window.filterSubjects = filterSubjects;
+window.exportData = exportData;
+window.openAddChapterModal = openAddChapterModal;
+window.openAddTopicModal = openAddTopicModal;
+window.addKPIField = addKPIField;
+window.initializeReportBuilder = initializeReportBuilder;
+  
+// Missing Functions
+async function saveTask() {
+    try {
+        const form = document.getElementById('taskForm');
+        const formData = new FormData(form);
+        
+        const taskData = {
+            title: formData.get('title'),
+            dueDate: formData.get('dueDate'),
+            priority: formData.get('priority'),
+            description: formData.get('description')
+        };
+        
+        if (!taskData.title || !taskData.dueDate) {
+            showAlert('Please fill in all required fields', 'warning');
+            return;
+        }
+        
+        const response = await fetch(`${API_BASE}/tasks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(taskData)
+        });
+        
+        if (!response.ok) throw new Error('Failed to save task');
+        
+        closeModal('addTaskModal');
+        showAlert('Task created successfully!', 'success');
+        await loadTasks();
+        loadPageContent(state.currentPage);
+    } catch (error) {
+        console.error('Error saving task:', error);
+        showAlert('Failed to save task', 'danger');
+    }
+}
+
+async function saveMilestone() {
+    try {
+        const form = document.getElementById('milestoneForm');
+        const formData = new FormData(form);
+        
+        const milestoneData = {
+            title: formData.get('title'),
+            targetDate: formData.get('targetDate'),
+            reward: formData.get('reward'),
+            description: formData.get('description')
+        };
+        
+        if (!milestoneData.title || !milestoneData.targetDate) {
+            showAlert('Please fill in all required fields', 'warning');
+            return;
+        }
+        
+        const response = await fetch(`${API_BASE}/milestones`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(milestoneData)
+        });
+        
+        if (!response.ok) throw new Error('Failed to save milestone');
+        
+        closeModal('addMilestoneModal');
+        showAlert('Milestone created successfully!', 'success');
+        await loadMilestones();
+        loadPageContent(state.currentPage);
+    } catch (error) {
+        console.error('Error saving milestone:', error);
+        showAlert('Failed to save milestone', 'danger');
+    }
+}
+
+async function saveScheduledReport() {
+    try {
+        const form = document.getElementById('scheduledReportForm');
+        const formData = new FormData(form);
+        
+        const reportData = {
+            name: formData.get('name'),
+            schedule: formData.get('schedule'),
+            recipients: formData.get('recipients')
+        };
+        
+        if (!reportData.name || !reportData.schedule) {
+            showAlert('Please fill in all required fields', 'warning');
+            return;
+        }
+        
+        const response = await fetch(`${API_BASE}/scheduled-reports`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reportData)
+        });
+        
+        if (!response.ok) throw new Error('Failed to save scheduled report');
+        
+        closeModal('addScheduledReportModal');
+        showAlert('Scheduled report created successfully!', 'success');
+        await loadScheduledReports();
+        loadPageContent(state.currentPage);
+    } catch (error) {
+        console.error('Error saving scheduled report:', error);
+        showAlert('Failed to save scheduled report', 'danger');
+    }
+}
+
+async function loadMilestones() {
+    try {
+        const response = await fetch(`${API_BASE}/milestones`);
+        if (!response.ok) throw new Error('Failed to load milestones');
+        state.milestones = await response.json();
+    } catch (error) {
+        console.error('Error loading milestones:', error);
+        state.milestones = [];
+    }
+}
+
+async function loadScheduledReports() {
+    try {
+        const response = await fetch(`${API_BASE}/scheduled-reports`);
+        if (!response.ok) throw new Error('Failed to load scheduled reports');
+        state.scheduledReports = await response.json();
+    } catch (error) {
+        console.error('Error loading scheduled reports:', error);
+        state.scheduledReports = [];
+    }
+}
+
+// Global function exports
   
