@@ -1,4 +1,4 @@
-import { Schema, model, Document, Types } from 'mongoose';
+import mongoose, { Schema, Document, Types } from 'mongoose';
 
 export interface ITask extends Document {
   teacher?: Types.ObjectId;
@@ -11,6 +11,7 @@ export interface ITask extends Document {
   priority: 'low' | 'medium' | 'high';
   createdAt: Date;
   updatedAt: Date;
+  type: 'daily' | 'weekly' | 'monthly';
 }
 
 const TaskSchema = new Schema<ITask>({
@@ -22,6 +23,7 @@ const TaskSchema = new Schema<ITask>({
   completed: { type: Boolean, default: false },
   notes: { type: String },
   priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
+  type: { type: String, enum: ['daily', 'weekly', 'monthly'], default: 'daily' },
 }, { timestamps: true });
 
-export default model<ITask>('Task', TaskSchema); 
+export default mongoose.model<ITask>('Task', TaskSchema); 

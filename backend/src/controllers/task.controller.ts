@@ -4,7 +4,7 @@ import Subject from '../models/Subject';
 import Chapter from '../models/Chapter';
 import Topic from '../models/Topic';
 import { User } from '../models/User';
-import { Progress } from '../models/Progress';
+import Progress from '../models/Progress';
 
 export class TaskController {
   async generateDailyTasks(req: Request, res: Response, next: NextFunction) {
@@ -66,8 +66,8 @@ export class TaskController {
         
         // If deadline is in the past, create a high-priority task for today
         if (isOverdue) {
-          await this.createTaskForDate(null, subject, nextTopic, today, 'high', generated);
-          generated++;
+          const created = await this.createTaskForDate(null, subject, nextTopic, today, 'high');
+          if (created) generated++;
           continue;
         }
         
@@ -88,8 +88,8 @@ export class TaskController {
             else if (daysUntilDeadline <= 3) priority = 'medium';
             
             // Create task for this specific day
-            await this.createTaskForDate(null, subject, nextTopic, workDate, priority, generated);
-            generated++;
+            const created = await this.createTaskForDate(null, subject, nextTopic, workDate, priority);
+            if (created) generated++;
           }
         }
       }
@@ -145,20 +145,20 @@ export class TaskController {
     return null; // No incomplete topics found
   }
 
-  private async createTaskForDate(teacherId: any, subject: any, topic: any, date: Date, priority: string, index: number) {
+  private async createTaskForDate(teacherId: any, subject: any, topic: any, date: Date, priority: string): Promise<boolean> {
+    const taskDate = new Date(date);
+    taskDate.setHours(0, 0, 0, 0);
+
     // Avoid duplicate tasks for the same topic on the same date
     const exists = await Task.findOne({
       teacher: teacherId,
       class: subject.class,
       subject: subject._id,
-      date: date,
+      date: taskDate,
       title: topic.title
     });
     
     if (!exists) {
-      const taskDate = new Date(date);
-      taskDate.setHours(0, 0, 0, 0);
-      
       await Task.create({
         teacher: teacherId, // This will be null for now since we're not using teacher assignments
         class: subject.class,
@@ -169,7 +169,9 @@ export class TaskController {
         priority,
         notes: `Deadline: ${new Date(topic.deadline).toLocaleDateString()}`
       });
+      return true;
     }
+    return false;
   }
 
   async getTasks(req: Request, res: Response, next: NextFunction) {
@@ -254,14 +256,13 @@ export class TaskController {
     }
   }
 
-  private async cleanupOrphanedTasksInternal() {
-    // Get all existing topics
+  private async cleanupOrphanedTasksInternal(): Promise<{ deletedCount: number }> {
+    // 1. Clean up orphaned tasks
     const subjects = await Subject.find().populate({
       path: 'chapters',
       populate: { path: 'topics' }
     });
 
-    // Collect all valid topic titles
     const validTopicTitles = new Set<string>();
     for (const subject of subjects) {
       if (subject.chapters) {
@@ -275,7 +276,6 @@ export class TaskController {
       }
     }
 
-    // Find and delete tasks with titles that don't exist in any topic
     const allTasks = await Task.find();
     let deletedCount = 0;
 
@@ -287,8 +287,45 @@ export class TaskController {
     }
 
     if (deletedCount > 0) {
-      console.log(`Cleaned up ${deletedCount} orphaned tasks during task generation`);
+      console.log(`Cleaned up ${deletedCount} orphaned tasks.`);
     }
+    
+    // 2. Clean up duplicate tasks
+    const duplicateTasks = await Task.aggregate([
+      {
+        $group: {
+          _id: {
+            title: '$title',
+            date: '$date',
+            subject: '$subject',
+            class: '$class'
+          },
+          count: { $sum: 1 },
+          docs: { $push: '$_id' }
+        }
+      },
+      {
+        $match: {
+          count: { $gt: 1 }
+        }
+      }
+    ]);
+
+    let duplicateDeletedCount = 0;
+    for (const group of duplicateTasks) {
+      // Remove the first document, which we'll keep
+      group.docs.shift();
+      
+      // Delete the rest of the duplicates
+      await Task.deleteMany({ _id: { $in: group.docs } });
+      duplicateDeletedCount += group.docs.length;
+    }
+
+    if (duplicateDeletedCount > 0) {
+      console.log(`Cleaned up ${duplicateDeletedCount} duplicate tasks.`);
+    }
+
+    deletedCount += duplicateDeletedCount;
 
     return { deletedCount };
   }

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Progress } from '../models/Progress';
+import Progress from '../models/Progress';
 import Subject from '../models/Subject';
 import Chapter from '../models/Chapter';
 import Topic from '../models/Topic';

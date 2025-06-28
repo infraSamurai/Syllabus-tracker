@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
 import { connectDB } from './config/database';
 
 // Import routes
@@ -15,8 +14,6 @@ import pdfRoutes from './routes/pdf.routes';
 // Removed empty teacher routes import
 
 import errorMiddleware from './middleware/error.middleware';
-
-dotenv.config();
 
 const app = express();
 

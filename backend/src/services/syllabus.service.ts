@@ -1,7 +1,7 @@
 import Subject, { ISubject } from '../models/Subject';
 import Chapter, { IChapter } from '../models/Chapter';
 import Topic, { ITopic } from '../models/Topic';
-import { Progress } from '../models/Progress';
+import Progress from '../models/Progress';
 import { User } from '../models/User';
 import Task from '../models/Task';
 
@@ -20,7 +20,7 @@ export const createSubject = async (subjectData: Partial<ISubject>): Promise<ISu
 
   const teacher = await User.findOne({ role: 'teacher' });
   if (!teacher) {
-    console.warn('No teacher found in the database. Progress tracking will not be enabled for this subject.');
+    console.warn('No teacher found. Progress tracking will not be enabled.');
     return subject;
   }
 
@@ -29,7 +29,7 @@ export const createSubject = async (subjectData: Partial<ISubject>): Promise<ISu
     teacher: teacher._id,
     totalChapters: subjectData.chapters?.length || 0,
     completedChapters: 0,
-    totalTopics: 0, // This should be calculated when chapters/topics are added
+    totalTopics: 0,
     completedTopics: 0,
     percentageComplete: 0,
     isOnTrack: true,
@@ -109,6 +109,22 @@ export const toggleTopicCompletion = async (topicId: string): Promise<ITopic | n
                 } else {
                     progress.percentageComplete = 0;
                 }
+                
+                // A more robust isOnTrack status
+                const timeToDeadline = new Date(subject.deadline).getTime() - new Date().getTime();
+                const totalTimeForSubject = new Date(subject.deadline).getTime() - new Date(subject.createdAt).getTime();
+                const timeElapsed = new Date().getTime() - new Date(subject.createdAt).getTime();
+                
+                if (timeToDeadline < 0) {
+                    progress.isOnTrack = progress.percentageComplete === 100;
+                } else if (totalTimeForSubject > 0) {
+                    const expectedPercentage = (timeElapsed / totalTimeForSubject) * 100;
+                    // isOnTrack if you are at or ahead of the expected pace
+                    progress.isOnTrack = progress.percentageComplete >= expectedPercentage;
+                } else {
+                    progress.isOnTrack = true; // If no duration, assume on track
+                }
+
                 progress.lastUpdated = new Date();
                 await progress.save();
             }
@@ -216,7 +232,7 @@ const cleanupOrphanedTasksForSubject = async (subjectId: string) => {
     for (const chapter of subject.chapters as any[]) {
       if (chapter.topics) {
         for (const topic of chapter.topics) {
-          validTopicTitles.add(topic.title);
+          validTopicTitles.add(topic.title);``
         }
       }
     }

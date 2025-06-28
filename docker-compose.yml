@@ -28,7 +28,7 @@ services:
       MONGODB_URI: mongodb://admin:password123@mongodb:27017/syllabus_tracker?authSource=admin
       JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
     ports:
-      - "5001:5000"
+      - "5002:5000"
     depends_on:
       - mongodb
     networks:
@@ -43,9 +43,9 @@ services:
     container_name: syllabus-tracker-frontend
     restart: unless-stopped
     environment:
-      VITE_API_URL: http://localhost:5001/api
+      VITE_API_URL: http://localhost:5002/api
     ports:
-      - "3000:80"
+      - "3002:80"
     depends_on:
       - backend
     networks:

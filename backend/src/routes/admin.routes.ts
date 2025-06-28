@@ -13,4 +13,9 @@ router.get('/school-wide-progress', adminController.getSchoolWideProgress.bind(a
 router.get('/department-progress', adminController.getDepartmentProgress.bind(adminController));
 router.get('/compliance-report', adminController.generateComplianceReport.bind(adminController));
 
+// Health check endpoint
+router.get('/health', (req, res) => {
+  res.json({ status: 'ok', message: 'API is healthy' });
+});
+
 export default router;

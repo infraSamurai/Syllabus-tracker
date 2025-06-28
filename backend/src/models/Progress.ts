@@ -1,8 +1,8 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IProgress extends Document {
-  subject: Schema.Types.ObjectId;
-  teacher: Schema.Types.ObjectId;
+  subject: Types.ObjectId;
+  teacher: Types.ObjectId;
   totalChapters: number;
   completedChapters: number;
   totalTopics: number;
@@ -26,4 +26,4 @@ const progressSchema = new Schema<IProgress>({
   isOnTrack: { type: Boolean, default: true },
 }, { timestamps: true });
 
-export const Progress = model<IProgress>('Progress', progressSchema);
+export default model<IProgress>('Progress', progressSchema);

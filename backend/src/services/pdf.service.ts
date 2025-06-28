@@ -3,7 +3,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import Subject from '../models/Subject';
 import Task from '../models/Task';
-import { Progress } from '../models/Progress';
+import Progress from '../models/Progress';
 
 interface DepartmentStats {
   count: number;

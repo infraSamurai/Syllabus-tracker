@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syllabus Tracker Pro - Educational Management System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* All CSS styles from the original file */
+        /* ... (keep all existing CSS styles) ... */
+    </style>
+</head>
+<body>
+    <!-- HTML structure from the original file -->
+    <!-- ... (keep all existing HTML) ... -->
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // ========================
+        // STATE MANAGEMENT
+        // ========================
+        const state = {
+            currentPage: 'dashboard',
+            subjects: [],
+            classes: [],
+            tasks: [],
+            kpis: [],
+            progressHistory: [],
+            milestones: [],
+            scheduledReports: [],
+            widgets: [
+                { id: 1, name: 'Progress Chart', icon: '📊', type: 'chart' },
+                { id: 2, name: 'Trend Analysis', icon: '📈', type: 'chart' },
+                { id: 3, name: 'KPI Summary', icon: '🎯', type: 'summary' },
+                { id: 4, name: 'Task Overview', icon: '📋', type: 'list' },
+                { id: 5, name: 'Milestone Tracker', icon: '🏆', type: 'list' },
+                { id: 6, name: 'Department Comparison', icon: '📊', type: 'chart' },
+                { id: 7, name: 'Timeline View', icon: '📅', type: 'timeline' },
+                { id: 8, name: 'Custom Table', icon: '📊', type: 'table' }
+            ],
+            reportWidgets: [],
+            activeTab: 'progress-chart',
+            charts: {},
+            notifications: [
+                { id: 1, text: 'Mathematics KPI achieved', time: '2 hours ago', read: false },
+                { id: 2, text: 'New task assigned: Grade assignments', time: '4 hours ago', read: false },
+                { id: 3, text: 'Progress report generated', time: '1 day ago', read: true }
+            ]
+        };
+
+        // ========================
+        // MOCK DATA GENERATION
+        // ========================
+        function generateMockData() {
+            // Generate classes
+            state.classes = [
+                { id: 'c1', name: 'Grade 9', subjects: ['s1', 's2'] },
+                { id: 'c2', name: 'Grade 10', subjects: ['s3', 's4'] },
+                { id: 'c3', name: 'Grade 11', subjects: ['s5', 's6'] }
+            ];
+
+            // Generate subjects
+            state.subjects = [
+                { 
+                    id: 's1', 
+                    name: 'Mathematics', 
+                    code: 'MATH101', 
+                    department: 'Mathematics', 
+                    class: 'c1',
+                    progress: 75,
+                    chapters: 8,
+                    topics: 45,
+                    completedTopics: 34,
+                    kpis: ['k1', 'k2']
+                },
+                { 
+                    id: 's2', 
+                    name: 'Science', 
+                    code: 'SCI101', 
+                    department: 'Science', 
+                    class: 'c1',
+                    progress: 68,
+                    chapters: 6,
+                    topics: 38,
+                    completedTopics: 26,
+                    kpis: ['k3', 'k4']
+                },
+                { 
+                    id: 's3', 
+                    name: 'English', 
+                    code: 'ENG201', 
+                    department: 'Languages', 
+                    class: 'c2',
+                    progress: 82,
+                    chapters: 7,
+                    topics: 42,
+                    completedTopics: 35,
+                    kpis: ['k5']
+                }
+            ];
+
+            // Generate KPIs
+            state.kpis = [
+                { id: 'k1', subject: 's1', title: 'Complete algebra syllabus', target: 100, current: 85, achieved: false, deadline: '2023-12-15' },
+                { id: 'k2', subject: 's1', title: 'Maintain 80% average score', target: 80, current: 78, achieved: false, deadline: '2023-11-30' },
+                { id: 'k3', subject: 's2', title: 'Complete physics experiments', target: 10, current: 8, achieved: false, deadline: '2023-12-10' },
+                { id: 'k4', subject: 's2', title: 'Submit all lab reports', target: 12, current: 9, achieved: false, deadline: '2023-12-05' },
+                { id: 'k5', subject: 's3', title: 'Complete literature analysis', target: 15, current: 15, achieved: true, deadline: '2023-11-20' }
+            ];
+
+            // Generate tasks
+            state.tasks = [
+                { id: 't1', subject: 's1', title: 'Grade algebra assignments', priority: 'high', due: '2023-11-25', completed: false },
+                { id: 't2', subject: 's2', title: 'Prepare physics lab', priority: 'medium', due: '2023-11-28', completed: false },
+                { id: 't3', subject: 's3', title: 'Review essay submissions', priority: 'medium', due: '2023-11-30', completed: true },
+                { id: 't4', subject: 's1', title: 'Create calculus quiz', priority: 'low', due: '2023-12-05', completed: false }
+            ];
+
+            // Generate milestones
+            state.milestones = [
+                { id: 'm1', name: 'Halfway Mark', type: 'progress', target: 50, reward: 'Certificate', achieved: true },
+                { id: 'm2', name: 'Subject Master', type: 'completion', target: 100, reward: 'Badge', achieved: false },
+                { id: 'm3', name: 'KPI Champion', type: 'kpi', target: 5, reward: 'Points', achieved: false }
+            ];
+
+            // Generate progress history
+            const now = new Date();
+            for (let i = 30; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(now.getDate() - i);
+                
+                state.progressHistory.push({
+                    date: date.toISOString().split('T')[0],
+                    mathematics: Math.min(100, Math.floor(75 * (1 - i/30) + Math.random() * 5),
+                    science: Math.min(100, Math.floor(68 * (1 - i/30) + Math.random() * 5),
+                    english: Math.min(100, Math.floor(82 * (1 - i/30) + Math.random() * 5)
+                });
+            }
+
+            // Generate scheduled reports
+            state.scheduledReports = [
+                { id: 'r1', name: 'Weekly Progress', frequency: 'weekly', recipients: 'admin@school.edu', lastRun: '2023-11-20', nextRun: '2023-11-27' },
+                { id: 'r2', name: 'Monthly Summary', frequency: 'monthly', recipients: 'principal@school.edu', lastRun: '2023-10-31', nextRun: '2023-11-30' }
+            ];
+        }
+
+        // ========================
+        // INITIALIZATION
+        // ========================
+        document.addEventListener('DOMContentLoaded', function() {
+            generateMockData();
+            setupEventListeners();
+            showPage('dashboard');
+            initializeCharts();
+        });
+
+        function setupEventListeners() {
+            // Search functionality
+            document.querySelector('.search-input').addEventListener('input', function(e) {
+                const term = e.target.value.toLowerCase();
+                filterContent(term);
+            });
+
+            // Notification button
+            document.querySelector('.btn-icon[data-action="notifications"]').addEventListener('click', toggleNotifications);
+
+            // Profile button
+            document.querySelector('.btn-icon[data-action="profile"]').addEventListener('click', showProfileMenu);
+        }
+
+        // ========================
+        // NAVIGATION & PAGE RENDERING
+        // ========================
+        function showPage(pageId) {
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(page => {
+                page.style.display = 'none';
+            });
+            
+            // Show selected page
+            document.getElementById(`${pageId}-page`).style.display = 'block';
+            
+            // Update nav items
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Find and activate the clicked nav item
+            const activeNav = document.querySelector(`.nav-item[onclick*="${pageId}"]`);
+            if (activeNav) {
+                activeNav.classList.add('active');
+            }
+            
+            // Update page title
+            const titles = {
+                'dashboard': 'Dashboard',
+                'subjects': 'Subjects & KPIs',
+                'analytics': 'Analytics & Insights',
+                'tasks': 'Daily Tasks',
+                'report-builder': 'Custom Report Builder',
+                'scheduled-reports': 'Scheduled Reports',
+                'export': 'Export Data',
+                'classes': 'Class Management',
+                'progress': 'Progress Tracking',
+                'milestones': 'Milestones & Rewards'
+            };
+            document.getElementById('page-title').textContent = titles[pageId] || 'Syllabus Tracker Pro';
+            
+            // Render page-specific content
+            switch(pageId) {
+                case 'dashboard':
+                    renderDashboard();
+                    break;
+                case 'subjects':
+                    renderSubjectsPage();
+                    break;
+                case 'analytics':
+                    renderAnalyticsPage();
+                    break;
+                case 'tasks':
+                    renderTasksPage();
+                    break;
+                case 'report-builder':
+                    initReportBuilder();
+                    break;
+                case 'scheduled-reports':
+                    renderScheduledReports();
+                    break;
+                case 'export':
+                    renderExportPage();
+                    break;
+                case 'progress':
+                    renderProgressPage();
+                    break;
+                case 'milestones':
+                    renderMilestonesPage();
+                    break;
+            }
+        }
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(tabId).classList.add('active');
+            
+            document.querySelectorAll('.tab-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            // Update charts when switching tabs
+            if (tabId === 'progress-chart') {
+                renderProgressChart();
+            } else if (tabId === 'department-chart') {
+                renderDepartmentChart();
+            } else if (tabId === 'forecast-chart') {
+                renderForecastChart();
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('open');
+        }
+
+        // ========================
+        // DASHBOARD PAGE
+        // ========================
+        function renderDashboard() {
+            // Update stats cards
+            updateStatCard('Total Subjects', state.subjects.length, '+12% from last month', 'positive');
+            updateStatCard('Overall Progress', '68%', null, null, 68);
+            updateStatCard('KPIs Achieved', 
+                state.kpis.filter(k => k.achieved).length, 
+                '↑ 8% this week', 
+                'positive'
+            );
+            updateStatCard('Active Tasks', 
+                state.tasks.filter(t => !t.completed).length, 
+                '↓ 3% from yesterday', 
+                'negative'
+            );
+
+            // Render charts
+            renderProgressChart();
+        }
+
+        function updateStatCard(label, value, change, changeType, progressValue) {
+            const cards = document.querySelectorAll('.stat-card');
+            for (const card of cards) {
+                if (card.querySelector('.stat-label').textContent === label) {
+                    card.querySelector('.stat-value').textContent = value;
+                    
+                    if (change) {
+                        const changeEl = card.querySelector('.stat-change');
+                        changeEl.textContent = change;
+                        changeEl.className = `stat-change ${changeType}`;
+                    }
+                    
+                    if (progressValue !== undefined) {
+                        const progressFill = card.querySelector('.progress-fill');
+                        progressFill.style.width = `${progressValue}%`;
+                    }
+                    break;
+                }
+            }
+        }
+
+        function renderProgressChart() {
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            
+            if (state.charts.progress) {
+                state.charts.progress.destroy();
+            }
+            
+            const labels = state.progressHistory.map(entry => {
+                const date = new Date(entry.date);
+                return `${date.getDate()}/${date.getMonth() + 1}`;
+            });
+            
+            state.charts.progress = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Mathematics',
+                            data: state.progressHistory.map(entry => entry.mathematics),
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Science',
+                            data: state.progressHistory.map(entry => entry.science),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'English',
+                            data: state.progressHistory.map(entry => entry.english),
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: (value) => value + '%'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDepartmentChart() {
+            const ctx = document.getElementById('departmentChart').getContext('2d');
+            
+            if (state.charts.department) {
+                state.charts.department.destroy();
+            }
+            
+            // Group subjects by department
+            const departmentProgress = {};
+            state.subjects.forEach(subject => {
+                if (!departmentProgress[subject.department]) {
+                    departmentProgress[subject.department] = [];
+                }
+                departmentProgress[subject.department].push(subject.progress);
+            });
+            
+            const departmentAverages = {};
+            for (const dept in departmentProgress) {
+                const avg = departmentProgress[dept].reduce((a, b) => a + b, 0) / departmentProgress[dept].length;
+                departmentAverages[dept] = avg;
+            }
+            
+            state.charts.department = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(departmentAverages),
+                    datasets: [{
+                        label: 'Average Progress %',
+                        data: Object.values(departmentAverages),
+                        backgroundColor: [
+                            '#6366f1',
+                            '#8b5cf6',
+                            '#10b981',
+                            '#f59e0b'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: (value) => value + '%'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderForecastChart() {
+            const ctx = document.getElementById('forecastChart').getContext('2d');
+            
+            if (state.charts.forecast) {
+                state.charts.forecast.destroy();
+            }
+            
+            // Generate forecast data
+            const mathData = state.progressHistory.map(entry => entry.mathematics);
+            const forecastData = [];
+            
+            // Simple forecasting algorithm
+            const lastValue = mathData[mathData.length - 1];
+            const growthRate = 1.5; // 1.5% per day
+            
+            for (let i = 0; i < 14; i++) {
+                forecastData.push(Math.min(100, lastValue + (i * growthRate)));
+            }
+            
+            state.charts.forecast = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [...Array(30).keys()].map(i => `Day ${i + 1}`).concat(
+                        [...Array(14).keys()].map(i => `F ${i + 1}`)
+                    ),
+                    datasets: [
+                        {
+                            label: 'Actual Progress',
+                            data: mathData.concat(Array(14).fill(null)),
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Forecast',
+                            data: [...Array(30).fill(null)].concat(forecastData),
+                            borderColor: '#ef4444',
+                            borderDash: [5, 5],
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: (value) => value + '%'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ========================
+        // SUBJECTS & KPIs PAGE
+        // ========================
+        function renderSubjectsPage() {
+            const container = document.getElementById('subject-kpi-list');
+            container.innerHTML = '';
+            
+            state.subjects.forEach(subject => {
+                const subjectKPIs = state.kpis.filter(k => k.subject === subject.id);
+                const achievedCount = subjectKPIs.filter(k => k.achieved).length;
+                const kpiStatus = achievedCount === subjectKPIs.length ? 'achieved' : 
+                                 achievedCount > 0 ? 'pending' : 'failed';
+                
+                const kpiCard = document.createElement('div');
+                kpiCard.className = 'kpi-card';
+                kpiCard.innerHTML = `
+                    <div class="kpi-header">
+                        <h4 class="kpi-title">${subject.name} - ${getClassName(subject.class)}</h4>
+                        <div class="kpi-status ${kpiStatus}">
+                            ${kpiStatus === 'achieved' ? '✓' : kpiStatus === 'pending' ? '⏱' : '✗'}
+                        </div>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-header">
+                            <span class="progress-label">Overall Progress</span>
+                            <span class="progress-value">${subject.progress}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${subject.progress}%"></div>
+                        </div>
+                    </div>
+                    <div class="kpi-items">
+                        ${subjectKPIs.map(kpi => `
+                            <div class="kpi-item">
+                                <input type="checkbox" class="kpi-checkbox" 
+                                    ${kpi.achieved ? 'checked' : ''}
+                                    onchange="updateKPI('${kpi.id}', this.checked)">
+                                <span class="kpi-label">${kpi.title} (${kpi.current}/${kpi.target})</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div style="margin-top: 16px; display: flex; gap: 8px;">
+                        <button class="btn btn-secondary btn-sm" onclick="editSubject('${subject.id}')">
+                            Edit Subject
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="viewSubjectDetails('${subject.id}')">
+                            View Details
+                        </button>
+                    </div>
+                `;
+                container.appendChild(kpiCard);
+            });
+        }
+
+        function getClassName(classId) {
+            const cls = state.classes.find(c => c.id === classId);
+            return cls ? cls.name : 'Unknown Class';
+        }
+
+        function updateKPI(kpiId, achieved) {
+            const kpi = state.kpis.find(k => k.id === kpiId);
+            if (kpi) {
+                kpi.achieved = achieved;
+                if (achieved) {
+                    showAlert(`KPI "${kpi.title}" marked as achieved!`, 'success');
+                }
+                renderSubjectsPage();
+            }
+        }
+
+        // ========================
+        // REPORT BUILDER PAGE
+        // ========================
+        function initReportBuilder() {
+            const sidebar = document.querySelector('.report-sidebar');
+            sidebar.innerHTML = '<h4 style="margin-bottom: 16px;">Available Widgets</h4>';
+            
+            state.widgets.forEach(widget => {
+                const widgetEl = document.createElement('div');
+                widgetEl.className = 'widget-item';
+                widgetEl.draggable = true;
+                widgetEl.innerHTML = `${widget.icon} ${widget.name}`;
+                widgetEl.dataset.id = widget.id;
+                
+                widgetEl.addEventListener('dragstart', function(e) {
+                    e.dataTransfer.setData('widgetId', widget.id);
+                });
+                
+                sidebar.appendChild(widgetEl);
+            });
+            
+            const canvas = document.getElementById('report-canvas');
+            canvas.innerHTML = state.reportWidgets.length > 0 ? '' : `
+                <div style="text-align: center; color: var(--gray-500); padding: 100px 20px;">
+                    <h3>Drag widgets here to build your report</h3>
+                    <p>Customize your report by dragging and dropping widgets from the sidebar</p>
+                </div>
+            `;
+            
+            state.reportWidgets.forEach(widget => {
+                addWidgetToCanvas(widget.id);
+            });
+            
+            canvas.addEventListener('dragover', function(e) {
+                e.preventDefault();
+            });
+            
+            canvas.addEventListener('drop', function(e) {
+                e.preventDefault();
+                const widgetId = e.dataTransfer.getData('widgetId');
+                addWidgetToCanvas(widgetId);
+            });
+        }
+
+        function addWidgetToCanvas(widgetId) {
+            const widget = state.widgets.find(w => w.id == widgetId);
+            if (!widget) return;
+            
+            // Check if widget already exists
+            if (state.reportWidgets.some(w => w.id == widgetId)) return;
+            
+            state.reportWidgets.push(widget);
+            const canvas = document.getElementById('report-canvas');
+            
+            // Remove placeholder
+            if (canvas.querySelector('div[style*="text-align: center"]')) {
+                canvas.innerHTML = '';
+            }
+            
+            const widgetEl = document.createElement('div');
+            widgetEl.className = 'card widget';
+            widgetEl.dataset.id = widget.id;
+            
+            // Widget content based on type
+            let content = '';
+            if (widget.type === 'chart') {
+                content = `<div class="chart-container" style="height: 200px;">
+                    <canvas id="widget-chart-${widget.id}"></canvas>
+                </div>`;
+            } else if (widget.type === 'summary') {
+                content = `<div class="kpi-summary">
+                    <div class="stat-card">
+                        <div class="stat-label">KPIs Achieved</div>
+                        <div class="stat-value">${state.kpis.filter(k => k.achieved).length}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">KPIs Pending</div>
+                        <div class="stat-value">${state.kpis.filter(k => !k.achieved).length}</div>
+                    </div>
+                </div>`;
+            } else {
+                content = `<div style="height: 200px; display: flex; align-items: center; justify-content: center; color: var(--gray-500);">
+                    ${widget.name} Content
+                </div>`;
+            }
+            
+            widgetEl.innerHTML = `
+                <div class="card-header">
+                    <h3 class="card-title">${widget.name}</h3>
+                    <button class="btn btn-icon btn-sm" onclick="removeWidget('${widget.id}')">×</button>
+                </div>
+                ${content}
+            `;
+            
+            canvas.appendChild(widgetEl);
+            
+            // If it's a chart, render it
+            if (widget.type === 'chart') {
+                renderWidgetChart(widget.id);
+            }
+        }
+
+        function removeWidget(widgetId) {
+            state.reportWidgets = state.reportWidgets.filter(w => w.id != widgetId);
+            document.querySelector(`.widget[data-id="${widgetId}"]`).remove();
+            
+            // Show placeholder if canvas is empty
+            const canvas = document.getElementById('report-canvas');
+            if (state.reportWidgets.length === 0) {
+                canvas.innerHTML = `
+                    <div style="text-align: center; color: var(--gray-500); padding: 100px 20px;">
+                        <h3>Drag widgets here to build your report</h3>
+                        <p>Customize your report by dragging and dropping widgets from the sidebar</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderWidgetChart(widgetId) {
+            const ctx = document.getElementById(`widget-chart-${widgetId}`).getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: state.subjects.map(s => s.name),
+                    datasets: [{
+                        label: 'Progress %',
+                        data: state.subjects.map(s => s.progress),
+                        backgroundColor: [
+                            '#6366f1',
+                            '#8b5cf6',
+                            '#10b981',
+                            '#f59e0b'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: (value) => value + '%'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function generateReport() {
+            showAlert('Report generated successfully!', 'success');
+            // In a real app, this would trigger download
+        }
+
+        // ========================
+        // ANALYTICS PAGE
+        // ========================
+        function renderAnalyticsPage() {
+            renderComparativeAnalysis();
+            renderTrendAnalysis();
+        }
+
+        function renderComparativeAnalysis() {
+            const ctx = document.getElementById('comparativeChart').getContext('2d');
+            
+            if (state.charts.comparative) {
+                state.charts.comparative.destroy();
+            }
+            
+            state.charts.comparative = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['Progress Rate', 'KPI Completion', 'Task Completion', 'Milestone Progress', 'Resource Usage'],
+                    datasets: [
+                        {
+                            label: 'Mathematics',
+                            data: [85, 75, 90, 60, 80],
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.2)'
+                        },
+                        {
+                            label: 'Science',
+                            data: [68, 60, 75, 50, 65],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.2)'
+                        },
+                        {
+                            label: 'English',
+                            data: [82, 90, 85, 70, 75],
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.2)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: {
+                                display: true
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTrendAnalysis() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            if (state.charts.trend) {
+                state.charts.trend.destroy();
+            }
+            
+            const labels = state.progressHistory.map(entry => {
+                const date = new Date(entry.date);
+                return `${date.getDate()}/${date.getMonth() + 1}`;
+            });
+            
+            state.charts.trend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Mathematics',
+                            data: state.progressHistory.map(entry => entry.mathematics),
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Science',
+                            data: state.progressHistory.map(entry => entry.science),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'English',
+                            data: state.progressHistory.map(entry => entry.english),
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: (value) => value + '%'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ========================
+        // EXPORT FUNCTIONALITY
+        // ========================
+        function renderExportPage() {
+            const container = document.getElementById('export-page');
+            container.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Export Data</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="export-options">
+                            <div class="export-option">
+                                <h4>Export Subjects Data</h4>
+                                <p>Includes all subjects with their progress and KPIs</p>
+                                <button class="btn btn-primary" onclick="exportData('subjects')">
+                                    Export as Excel
+                                </button>
+                                <button class="btn btn-secondary" onclick="exportData('subjects', 'csv')">
+                                    Export as CSV
+                                </button>
+                                <button class="btn btn-secondary" onclick="exportData('subjects', 'json')">
+                                    Export as JSON
+                                </button>
+                            </div>
+                            
+                            <div class="export-option">
+                                <h4>Export Progress History</h4>
+                                <p>Daily progress records for all subjects</p>
+                                <button class="btn btn-primary" onclick="exportData('progress')">
+                                    Export as Excel
+                                </button>
+                                <button class="btn btn-secondary" onclick="exportData('progress', 'csv')">
+                                    Export as CSV
+                                </button>
+                                <button class="btn btn-secondary" onclick="exportData('progress', 'json')">
+                                    Export as JSON
+                                </button>
+                            </div>
+                            
+                            <div class="export-option">
+                                <h4>Export Full Dataset</h4>
+                                <p>Complete system data including all records</p>
+                                <button class="btn btn-primary" onclick="exportData('full')">
+                                    Export as Excel
+                                </button>
+                                <button class="btn btn-secondary" onclick="exportData('full', 'csv')">
+                                    Export as CSV
+                                </button>
+                                <button class="btn btn-secondary" onclick="exportData('full', 'json')">
+                                    Export as JSON
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function exportData(type, format = 'excel') {
+            let message = `Exported ${type} data as ${format.toUpperCase()}`;
+            if (format === 'excel') {
+                message += ' (simulated)';
+            }
+            showAlert(message, 'success');
+        }
+
+        // ========================
+        // SCHEDULED REPORTS
+        // ========================
+        function renderScheduledReports() {
+            const container = document.getElementById('scheduled-reports-page');
+            container.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Scheduled Reports</h3>
+                        <button class="btn btn-primary" onclick="openModal('scheduleReportModal')">
+                            + New Schedule
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>Report Name</th>
+                                    <th>Frequency</th>
+                                    <th>Recipients</th>
+                                    <th>Last Run</th>
+                                    <th>Next Run</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${state.scheduledReports.map(report => `
+                                    <tr>
+                                        <td>${report.name}</td>
+                                        <td>${report.frequency}</td>
+                                        <td>${report.recipients}</td>
+                                        <td>${report.lastRun || 'Never'}</td>
+                                        <td>${report.nextRun}</td>
+                                        <td>
+                                            <button class="btn btn-icon" onclick="runReportNow('${report.id}')" title="Run Now">
+                                                ⚡
+                                            </button>
+                                            <button class="btn btn-icon" onclick="editReport('${report.id}')" title="Edit">
+                                                ✏️
+                                            </button>
+                                            <button class="btn btn-icon" onclick="deleteReport('${report.id}')" title="Delete">
+                                                🗑️
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        function runReportNow(reportId) {
+            const report = state.scheduledReports.find(r => r.id === reportId);
+            if (report) {
+                showAlert(`Running report "${report.name}" now...`, 'info');
+                // Simulate report generation
+                setTimeout(() => {
+                    showAlert(`Report "${report.name}" generated and sent successfully!`, 'success');
+                    report.lastRun = new Date().toISOString().split('T')[0];
+                    renderScheduledReports();
+                }, 2000);
+            }
+        }
+
+        // ========================
+        // PROGRESS TRACKING
+        // ========================
+        function renderProgressPage() {
+            const container = document.getElementById('progress-page');
+            container.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Progress Tracking</h3>
+                        <select class="form-select" onchange="filterProgressByClass(this.value)">
+                            <option value="all">All Classes</option>
+                            ${state.classes.map(cls => `
+                                <option value="${cls.id}">${cls.name}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div class="card-body">
+                        <div class="progress-grid">
+                            ${state.subjects.map(subject => `
+                                <div class="progress-card" data-class="${subject.class}">
+                                    <h4>${subject.name}</h4>
+                                    <div class="progress-container">
+                                        <div class="progress-header">
+                                            <span>Overall Progress</span>
+                                            <span>${subject.progress}%</span>
+                                        </div>
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" style="width: ${subject.progress}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="progress-details">
+                                        <div class="progress-metric">
+                                            <span>Chapters:</span>
+                                            <span>${subject.completedTopics}/${subject.topics}</span>
+                                        </div>
+                                        <div class="progress-metric">
+                                            <span>KPIs:</span>
+                                            <span>
+                                                ${state.kpis.filter(k => k.subject === subject.id && k.achieved).length}/
+                                                ${state.kpis.filter(k => k.subject === subject.id).length}
+                                            </span>
+                                        </div>
+                                        <div class="progress-metric">
+                                            <span>Predicted Completion:</span>
+                                            <span>${calculatePredictedCompletion(subject)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function calculatePredictedCompletion(subject) {
+            const daysRemaining = Math.round((100 - subject.progress) / 2);
+            const completionDate = new Date();
+            completionDate.setDate(completionDate.getDate() + daysRemaining);
+            return completionDate.toLocaleDateString();
+        }
+
+        function filterProgressByClass(classId) {
+            const cards = document.querySelectorAll('.progress-card');
+            cards.forEach(card => {
+                if (classId === 'all' || card.dataset.class === classId) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        // ========================
+        // MILESTONES & REWARDS
+        // ========================
+        function renderMilestonesPage() {
+            const container = document.getElementById('milestones-page');
+            container.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Milestones & Rewards</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="milestones-grid">
+                            ${state.milestones.map(milestone => `
+                                <div class="milestone-card ${milestone.achieved ? 'achieved' : ''}">
+                                    <div class="milestone-header">
+                                        <h4>${milestone.name}</h4>
+                                        <div class="milestone-status">
+                                            ${milestone.achieved ? '✅ Achieved' : '⌛ In Progress'}
+                                        </div>
+                                    </div>
+                                    <div class="milestone-progress">
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" 
+                                                 style="width: ${calculateMilestoneProgress(milestone)}%">
+                                            </div>
+                                        </div>
+                                        <div class="progress-value">
+                                            ${calculateMilestoneProgress(milestone)}%
+                                        </div>
+                                    </div>
+                                    <div class="milestone-reward">
+                                        Reward: ${milestone.reward}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function calculateMilestoneProgress(milestone) {
+            switch(milestone.type) {
+                case 'progress':
+                    const avgProgress = state.subjects.reduce((sum, s) => sum + s.progress, 0) / state.subjects.length;
+                    return Math.min(100, (avgProgress / milestone.target) * 100);
+                case 'completion':
+                    const completedSubjects = state.subjects.filter(s => s.progress === 100).length;
+                    return Math.min(100, (completedSubjects / milestone.target) * 100);
+                case 'kpi':
+                    const achievedKPIs = state.kpis.filter(k => k.achieved).length;
+                    return Math.min(100, (achievedKPIs / milestone.target) * 100);
+                default:
+                    return 0;
+            }
+        }
+
+        // ========================
+        // UTILITY FUNCTIONS
+        // ========================
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alert-container') || createAlertContainer();
+            
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.innerHTML = `
+                <span>${message}</span>
+                <button class="alert-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            alertContainer.appendChild(alert);
+            
+            setTimeout(() => {
+                if (alert.parentElement) {
+                    alert.remove();
+                }
+            }, 5000);
+        }
+
+        function createAlertContainer() {
+            const container = document.createElement('div');
+            container.id = 'alert-container';
+            container.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+            document.body.appendChild(container);
+            return container;
+        }
+
+        function addKPIField() {
+            const kpiList = document.getElementById('kpi-list');
+            const newKPI = document.createElement('div');
+            newKPI.className = 'kpi-item';
+            newKPI.style.marginTop = '8px';
+            newKPI.innerHTML = '<input type="text" class="form-input" placeholder="Enter KPI...">';
+            kpiList.appendChild(newKPI);
+        }
+
+        function toggleNotifications() {
+            const notifications = document.getElementById('notifications-panel');
+            if (notifications.style.display === 'block') {
+                notifications.style.display = 'none';
+            } else {
+                renderNotifications();
+                notifications.style.display = 'block';
+            }
+        }
+
+        function renderNotifications() {
+            const container = document.getElementById('notifications-list');
+            container.innerHTML = '';
+            
+            state.notifications.forEach(notification => {
+                const notifEl = document.createElement('div');
+                notifEl.className = `notification ${notification.read ? 'read' : 'unread'}`;
+                notifEl.innerHTML = `
+                    <div class="notification-content">
+                        <p>${notification.text}</p>
+                        <small>${notification.time}</small>
+                    </div>
+                    ${!notification.read ? '<span class="notification-badge">New</span>' : ''}
+                `;
+                container.appendChild(notifEl);
+                
+                // Mark as read when clicked
+                if (!notification.read) {
+                    notifEl.addEventListener('click', () => {
+                        notification.read = true;
+                        toggleNotifications();
+                        toggleNotifications(); // Reopen
+                    });
+                }
+            });
+        }
+
+        function showProfileMenu() {
+            const menu = document.getElementById('profile-menu');
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
+
+        // Initialize all charts
+        function initializeCharts() {
+            renderProgressChart();
+            renderDepartmentChart();
+            renderForecastChart();
+            renderComparativeAnalysis();
+            renderTrendAnalysis();
+        }
+    </script>
+</body>
+</html>
