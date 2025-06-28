@@ -1,7 +1,6 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export interface ITask extends Document {
-  teacher?: Types.ObjectId;
   class: Types.ObjectId;
   subject: Types.ObjectId;
   date: Date;
@@ -14,7 +13,6 @@ export interface ITask extends Document {
 }
 
 const TaskSchema = new Schema<ITask>({
-  teacher: { type: Schema.Types.ObjectId, ref: 'User' },
   class: { type: Schema.Types.ObjectId, ref: 'Class', required: true },
   subject: { type: Schema.Types.ObjectId, ref: 'Subject', required: true },
   date: { type: Date, required: true },

@@ -9,7 +9,8 @@ import { Progress } from '../models/Progress';
 export class TaskController {
   async generateDailyTasks(req: Request, res: Response, next: NextFunction) {
     try {
-      const { startDate, endDate } = req.query;
+      // Handle dates from both query parameters and request body
+      const { startDate, endDate } = req.body || req.query;
       
       // Default to generating tasks for the next 30 days if no dates specified
       const start = startDate ? new Date(startDate as string) : new Date();
@@ -66,7 +67,7 @@ export class TaskController {
         
         // If deadline is in the past, create a high-priority task for today
         if (isOverdue) {
-          await this.createTaskForDate(null, subject, nextTopic, today, 'high', generated);
+          await this.createTaskForDate(subject, nextTopic, today, 'high', generated);
           generated++;
           continue;
         }
@@ -88,7 +89,7 @@ export class TaskController {
             else if (daysUntilDeadline <= 3) priority = 'medium';
             
             // Create task for this specific day
-            await this.createTaskForDate(null, subject, nextTopic, workDate, priority, generated);
+            await this.createTaskForDate(subject, nextTopic, workDate, priority, generated);
             generated++;
           }
         }
@@ -145,10 +146,9 @@ export class TaskController {
     return null; // No incomplete topics found
   }
 
-  private async createTaskForDate(teacherId: any, subject: any, topic: any, date: Date, priority: string, index: number) {
+  private async createTaskForDate(subject: any, topic: any, date: Date, priority: string, index: number) {
     // Avoid duplicate tasks for the same topic on the same date
     const exists = await Task.findOne({
-      teacher: teacherId,
       class: subject.class,
       subject: subject._id,
       date: date,
@@ -160,7 +160,6 @@ export class TaskController {
       taskDate.setHours(0, 0, 0, 0);
       
       await Task.create({
-        teacher: teacherId, // This will be null for now since we're not using teacher assignments
         class: subject.class,
         subject: subject._id,
         date: taskDate,
@@ -174,10 +173,9 @@ export class TaskController {
 
   async getTasks(req: Request, res: Response, next: NextFunction) {
     try {
-      // Allow filtering by teacher and date
-      const { teacherId, date } = req.query;
+      // Allow filtering by date
+      const { date } = req.query;
       const filter: any = {};
-      if (teacherId) filter.teacher = teacherId;
       if (date) {
         const d = new Date(date as string);
         d.setHours(0,0,0,0);
@@ -185,7 +183,7 @@ export class TaskController {
         nextDay.setDate(d.getDate() + 1);
         filter.date = { $gte: d, $lt: nextDay };
       }
-      const tasks = await Task.find(filter).populate('teacher').populate('class').populate('subject');
+      const tasks = await Task.find(filter).populate('class').populate('subject');
       res.json(tasks);
     } catch (error) {
       next(error);

@@ -2,7 +2,6 @@ import { Schema, model, Document } from 'mongoose';
 
 export interface IProgress extends Document {
   subject: Schema.Types.ObjectId;
-  teacher: Schema.Types.ObjectId;
   totalChapters: number;
   completedChapters: number;
   totalTopics: number;
@@ -16,7 +15,6 @@ export interface IProgress extends Document {
 
 const progressSchema = new Schema<IProgress>({
   subject: { type: Schema.Types.ObjectId, ref: 'Subject', required: true },
-  teacher: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   totalChapters: { type: Number, required: true },
   completedChapters: { type: Number, default: 0 },
   totalTopics: { type: Number, required: true },

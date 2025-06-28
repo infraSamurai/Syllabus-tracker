@@ -1,5 +1,5 @@
 // API base URL
-const API_BASE = '/api';
+const API_BASE = 'http://localhost:5001/api';
 
 // Data storage
 let subjects = [];
@@ -34,6 +34,11 @@ function setupEventListeners() {
     document.getElementById('chapterForm').addEventListener('submit', saveChapter);
     document.getElementById('topicForm').addEventListener('submit', saveTopic);
     document.getElementById('classForm').addEventListener('submit', saveClass);
+    
+    // Quick setup event listeners
+    document.getElementById('quickClassForm').addEventListener('submit', saveQuickClass);
+    document.getElementById('quickSubjectForm').addEventListener('submit', saveQuickSubject);
+    document.getElementById('bulkTopicForm').addEventListener('submit', saveBulkTopics);
 }
 
 function renderAll() {
@@ -657,37 +662,184 @@ window.toggleDashboardDetails = function(element) {
     }
 }
 
-// Dashboard Update
+// Enhanced Dashboard Update
 function updateDashboard() {
-    const totalSubjectsEl = document.getElementById('totalSubjects');
-    const totalChaptersEl = document.getElementById('totalChapters');
-    const totalTopicsEl = document.getElementById('totalTopics');
-    const completedTopicsEl = document.getElementById('completedTopics');
-    const overallProgressEl = document.getElementById('overallProgress');
-    const overviewContainer = document.getElementById('dashboard-overview');
+    updateKPIStats();
+    updateDepartmentProgress();
+    updateUpcomingDeadlines();
+    updateSubjectOverview();
+    updateSetupProgress();
+}
 
-    let totalChapters = 0;
+function updateKPIStats() {
+    const totalSubjectsEl = document.getElementById('totalSubjects');
+    const completedTopicsEl = document.getElementById('completedTopics');
+    const overdueTopicsEl = document.getElementById('overdueTopics');
+    const overallProgressEl = document.getElementById('overallProgress');
+
     let totalTopics = 0;
     let completedTopics = 0;
+    let overdueTopics = 0;
 
     subjects.forEach(subject => {
-        totalChapters += subject.chapters.length;
         subject.chapters.forEach(chapter => {
             totalTopics += chapter.topics.length;
             completedTopics += chapter.topics.filter(t => t.completed).length;
+            overdueTopics += chapter.topics.filter(t => !t.completed && new Date(t.deadline) < new Date()).length;
         });
     });
 
     const overallProgress = totalTopics > 0 ? (completedTopics / totalTopics) * 100 : 0;
 
     if(totalSubjectsEl) totalSubjectsEl.textContent = subjects.length;
-    if(totalChaptersEl) totalChaptersEl.textContent = totalChapters;
-    if(totalTopicsEl) totalTopicsEl.textContent = totalTopics;
     if(completedTopicsEl) completedTopicsEl.textContent = completedTopics;
+    if(overdueTopicsEl) overdueTopicsEl.textContent = overdueTopics;
     if(overallProgressEl) overallProgressEl.textContent = `${Math.round(overallProgress)}%`;
 
+    // Update trend indicators (placeholder - could be enhanced with historical data)
+    const subjectsTrendEl = document.getElementById('subjectsTrend');
+    const completedTrendEl = document.getElementById('completedTrend');
+    const overdueTrendEl = document.getElementById('overdueTrend');
+    const progressTrendEl = document.getElementById('progressTrend');
+
+    if(subjectsTrendEl) subjectsTrendEl.textContent = `${subjects.length} active`;
+    if(completedTrendEl) completedTrendEl.textContent = `${Math.round((completedTopics/totalTopics)*100)}% done`;
+    if(overdueTrendEl) overdueTrendEl.textContent = overdueTopics > 0 ? `${overdueTopics} need attention` : 'On track';
+    if(progressTrendEl) progressTrendEl.textContent = overallProgress >= 70 ? 'Good pace' : 'Need focus';
+}
+
+function updateDepartmentProgress() {
+    const departmentContainer = document.getElementById('departmentProgress');
+    if (!departmentContainer) return;
+
+    const departmentStats = {};
+    subjects.forEach(subject => {
+        const dept = subject.department || 'Other';
+        if (!departmentStats[dept]) {
+            departmentStats[dept] = { totalTopics: 0, completedTopics: 0, subjects: 0 };
+        }
+        
+        departmentStats[dept].subjects++;
+        subject.chapters.forEach(chapter => {
+            departmentStats[dept].totalTopics += chapter.topics.length;
+            departmentStats[dept].completedTopics += chapter.topics.filter(t => t.completed).length;
+        });
+    });
+
+    departmentContainer.innerHTML = '';
+    
+    if (Object.keys(departmentStats).length === 0) {
+        departmentContainer.innerHTML = `
+            <div class="empty-state-sm">No department data available</div>
+        `;
+        return;
+    }
+
+    for (const [dept, stats] of Object.entries(departmentStats)) {
+        const progress = stats.totalTopics > 0 ? (stats.completedTopics / stats.totalTopics) * 100 : 0;
+        const progressColor = progress >= 80 ? 'high' : progress >= 40 ? 'medium' : 'low';
+        
+        const deptItem = document.createElement('div');
+        deptItem.className = 'department-item';
+        deptItem.innerHTML = `
+            <div class="department-header">
+                <div class="department-name">${dept}</div>
+                <div class="department-stats">${stats.subjects} subjects</div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar ${progressColor}" style="width: ${progress}%"></div>
+            </div>
+            <div class="progress-text">${stats.completedTopics}/${stats.totalTopics} topics (${Math.round(progress)}%)</div>
+        `;
+        departmentContainer.appendChild(deptItem);
+    }
+}
+
+function updateUpcomingDeadlines() {
+    const deadlinesContainer = document.getElementById('upcomingDeadlines');
+    if (!deadlinesContainer) return;
+
+    const allDeadlines = [];
+    const today = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(today.getDate() + 30);
+
+    subjects.forEach(subject => {
+        subject.chapters.forEach(chapter => {
+            chapter.topics.forEach(topic => {
+                if (!topic.completed) {
+                    const deadline = new Date(topic.deadline);
+                    if (deadline <= thirtyDaysFromNow) {
+                        const daysUntil = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+                        allDeadlines.push({
+                            title: topic.title,
+                            subject: subject.name,
+                            class: subject.class?.name || 'No Class',
+                            deadline: deadline,
+                            daysUntil: daysUntil,
+                            critical: daysUntil <= 3
+                        });
+                    }
+                }
+            });
+        });
+    });
+
+    allDeadlines.sort((a, b) => a.deadline - b.deadline);
+
+    deadlinesContainer.innerHTML = '';
+    
+    if (allDeadlines.length === 0) {
+        deadlinesContainer.innerHTML = `
+            <div class="empty-state-sm">No upcoming deadlines in the next 30 days</div>
+        `;
+        return;
+    }
+
+    allDeadlines.slice(0, 5).forEach(deadline => {
+        const deadlineItem = document.createElement('div');
+        deadlineItem.className = `deadline-item ${deadline.critical ? 'critical' : ''}`;
+        deadlineItem.innerHTML = `
+            <div class="deadline-title">${deadline.title}</div>
+            <div class="deadline-meta">
+                <span class="deadline-subject">${deadline.subject} - ${deadline.class}</span>
+                <div>
+                    <span class="deadline-days ${deadline.critical ? 'critical' : ''}">${deadline.daysUntil > 0 ? `${deadline.daysUntil} days` : 'Today'}</span>
+                    <span class="deadline-date">${deadline.deadline.toLocaleDateString()}</span>
+                </div>
+            </div>
+        `;
+        deadlinesContainer.appendChild(deadlineItem);
+    });
+}
+
+function updateSubjectOverview() {
+    const overviewContainer = document.getElementById('dashboard-overview');
+    if (!overviewContainer) return;
+
+    const filter = document.getElementById('dashboardFilter')?.value || 'all';
+    let filteredSubjects = subjects;
+
+    switch(filter) {
+        case 'active':
+            filteredSubjects = subjects.filter(s => {
+                const totalTopics = s.chapters.reduce((sum, c) => sum + c.topics.length, 0);
+                const completedTopics = s.chapters.reduce((sum, c) => sum + c.topics.filter(t => t.completed).length, 0);
+                return totalTopics > completedTopics;
+            });
+            break;
+        case 'behind':
+            filteredSubjects = subjects.filter(s => {
+                const totalTopics = s.chapters.reduce((sum, c) => sum + c.topics.length, 0);
+                const completedTopics = s.chapters.reduce((sum, c) => sum + c.topics.filter(t => t.completed).length, 0);
+                const progress = totalTopics > 0 ? (completedTopics / totalTopics) * 100 : 0;
+                return progress < 50; // Consider behind if less than 50% complete
+            });
+            break;
+    }
+
     // Group subjects by name for the overview
-    const groupedSubjects = subjects.reduce((acc, subject) => {
+    const groupedSubjects = filteredSubjects.reduce((acc, subject) => {
         if (!acc[subject.name]) {
             acc[subject.name] = [];
         }
@@ -699,8 +851,8 @@ function updateDashboard() {
     if (Object.keys(groupedSubjects).length === 0) {
         overviewContainer.innerHTML = `<div class="empty-state">
             <div class="empty-state-icon">📚</div>
-            <h3>No subjects added yet</h3>
-            <p>Start by adding subjects in the "Manage Subjects" tab</p>
+            <h3>No subjects match the current filter</h3>
+            <p>Try changing the filter or add more subjects</p>
         </div>`;
         return;
     }
@@ -765,6 +917,25 @@ function updateDashboard() {
     }
     overviewContainer.appendChild(grid);
 }
+
+// New dashboard utility functions
+window.refreshDashboard = function() {
+    showAlert('Refreshing dashboard data...', 'info');
+    loadData().then(() => {
+        updateDashboard();
+        showAlert('Dashboard refreshed successfully!', 'success');
+    });
+};
+
+window.toggleView = function(viewType) {
+    const buttons = document.querySelectorAll('.toggle-btn');
+    buttons.forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`[data-view="${viewType}"]`).classList.add('active');
+    
+    // Here you could implement different view layouts
+    // For now, we'll keep the same layout but could add list view later
+    updateSubjectOverview();
+};
 
 
 // Progress View
@@ -1083,21 +1254,6 @@ function renderWeeklyReport(report) {
         </div>
         
         <div class="report-section">
-            <h4>👨‍🏫 Teacher Progress</h4>
-            <div class="report-grid">
-                ${(report.teacherProgress || []).map(t => `
-                    <div class="report-card">
-                        <h5>${t.teacherName || 'Unknown Teacher'}</h5>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar ${(t.avgCompletion || 0) >= 80 ? 'high' : (t.avgCompletion || 0) >= 40 ? 'medium' : 'low'}" style="width: ${t.avgCompletion || 0}%"></div>
-                        </div>
-                        <p>${Math.round(t.avgCompletion || 0)}% completion</p>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-        
-        <div class="report-section">
             <h4>📚 Topics Overview</h4>
             <div class="report-stats">
                 <div class="stat-item">
@@ -1164,21 +1320,6 @@ function renderMonthlyReport(report) {
                         </div>
                         <p>${Math.round(d.avgProgress || 0)}% completion</p>
                         <p>${d.totalSubjects || 0} subjects, ${d.subjectsBehind || 0} behind</p>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-        
-        <div class="report-section">
-            <h4>👨‍🏫 Teacher Performance</h4>
-            <div class="report-grid">
-                ${(report.teacherPerformance || []).map(t => `
-                    <div class="report-card">
-                        <h5>${t.teacherName || 'Unknown Teacher'}</h5>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar ${(t.avgCompletion || 0) >= 80 ? 'high' : (t.avgCompletion || 0) >= 40 ? 'medium' : 'low'}" style="width: ${t.avgCompletion || 0}%"></div>
-                        </div>
-                        <p>${Math.round(t.avgCompletion || 0)}% completion</p>
                     </div>
                 `).join('')}
             </div>
@@ -1303,4 +1444,389 @@ window.downloadDailyTaskPDF = async function() {
         showAlert('Failed to download PDF: ' + error.message, 'error');
         console.error('Error:', error);
     }
-}; 
+};
+
+// === QUICK SETUP WORKFLOW FUNCTIONS ===
+
+// Quick Class Modal
+window.openQuickClassModal = function() {
+    document.getElementById('quickClassForm').reset();
+    openModal('quickClassModal');
+};
+
+async function saveQuickClass(e) {
+    e.preventDefault();
+    const classData = {
+        name: document.getElementById('quickClassName').value,
+        description: document.getElementById('quickClassDescription').value,
+    };
+
+    try {
+        const response = await fetch(`${API_BASE}/classes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(classData)
+        });
+        
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message || 'Failed to save class');
+        }
+        
+        await loadData();
+        renderAll();
+        updateSetupProgress();
+        closeModal('quickClassModal');
+        showAlert('Class created successfully! 🎉', 'success');
+    } catch (error) {
+        showAlert(error.message, 'danger');
+    }
+}
+
+// Quick Subject Modal
+window.openQuickSubjectModal = function() {
+    if (classes.length === 0) {
+        showAlert('Please create at least one class first', 'warning');
+        openQuickClassModal();
+        return;
+    }
+    
+    document.getElementById('quickSubjectForm').reset();
+    populateQuickSubjectDropdown();
+    
+    // Set default deadline to 6 months from now
+    const sixMonthsLater = new Date();
+    sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+    document.getElementById('quickSubjectDeadline').value = sixMonthsLater.toISOString().split('T')[0];
+    
+    // Clear chapters list
+    document.getElementById('quickChaptersList').innerHTML = '';
+    
+    openModal('quickSubjectModal');
+};
+
+function populateQuickSubjectDropdown() {
+    const select = document.getElementById('quickSubjectClass');
+    select.innerHTML = '<option value="">Select Class</option>';
+    classes.forEach(cls => {
+        const option = document.createElement('option');
+        option.value = cls._id;
+        option.textContent = cls.name;
+        select.appendChild(option);
+    });
+}
+
+window.addQuickChapter = function() {
+    const chaptersList = document.getElementById('quickChaptersList');
+    const chapterCount = chaptersList.children.length + 1;
+    
+    const chapterItem = document.createElement('div');
+    chapterItem.className = 'quick-chapter-item';
+    chapterItem.innerHTML = `
+        <input type="number" class="form-input chapter-number-input" value="${chapterCount}" min="1" placeholder="#" required>
+        <input type="text" class="form-input chapter-title-input" placeholder="Chapter title..." required>
+        <button type="button" class="remove-chapter-btn" onclick="removeQuickChapter(this)">×</button>
+    `;
+    
+    chaptersList.appendChild(chapterItem);
+};
+
+window.removeQuickChapter = function(button) {
+    button.parentElement.remove();
+    updateChapterNumbers();
+};
+
+function updateChapterNumbers() {
+    const chapters = document.querySelectorAll('.chapter-number-input');
+    chapters.forEach((input, index) => {
+        input.value = index + 1;
+    });
+}
+
+async function saveQuickSubject(e) {
+    e.preventDefault();
+    
+    const subjectData = {
+        name: document.getElementById('quickSubjectName').value,
+        code: document.getElementById('quickSubjectCode').value,
+        class: document.getElementById('quickSubjectClass').value,
+        department: document.getElementById('quickSubjectDepartment').value,
+        deadline: document.getElementById('quickSubjectDeadline').value,
+        description: `Created via Quick Setup on ${new Date().toLocaleDateString()}`
+    };
+    
+    if (!subjectData.class) {
+        showAlert('Please select a class for the subject.', 'danger');
+        return;
+    }
+    
+    try {
+        // Create subject first
+        const subjectResponse = await fetch(`${API_BASE}/syllabus/subjects`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(subjectData)
+        });
+
+        if (!subjectResponse.ok) {
+            const error = await subjectResponse.json();
+            throw new Error(error.message || 'Failed to save subject.');
+        }
+
+        const newSubject = await subjectResponse.json();
+        
+        // Create chapters if any
+        const chapterItems = document.querySelectorAll('.quick-chapter-item');
+        if (chapterItems.length > 0) {
+            for (const item of chapterItems) {
+                const chapterNumber = item.querySelector('.chapter-number-input').value;
+                const chapterTitle = item.querySelector('.chapter-title-input').value;
+                
+                if (chapterTitle.trim()) {
+                    const chapterData = {
+                        title: chapterTitle.trim(),
+                        number: parseInt(chapterNumber),
+                        subject: newSubject._id,
+                        deadline: subjectData.deadline,
+                        description: `Chapter ${chapterNumber} created via Quick Setup`
+                    };
+                    
+                    const chapterResponse = await fetch(`${API_BASE}/syllabus/chapters`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(chapterData)
+                    });
+                    
+                    if (!chapterResponse.ok) {
+                        console.warn(`Failed to create chapter: ${chapterTitle}`);
+                    }
+                }
+            }
+        }
+
+        await loadData();
+        renderAll();
+        updateSetupProgress();
+        closeModal('quickSubjectModal');
+        showAlert(`Subject "${subjectData.name}" created successfully with ${chapterItems.length} chapters! 🎉`, 'success');
+        
+    } catch (e) {
+        showAlert(e.message, 'danger');
+    }
+}
+
+// Bulk Topic Modal
+window.openBulkTopicModal = function() {
+    if (subjects.length === 0) {
+        showAlert('Please create subjects and chapters first', 'warning');
+        openQuickSubjectModal();
+        return;
+    }
+    
+    document.getElementById('bulkTopicForm').reset();
+    populateBulkSubjectDropdown();
+    
+    // Clear topics list
+    document.getElementById('bulkTopicsList').innerHTML = '';
+    
+    // Add first topic row
+    addBulkTopicRow();
+    
+    // Set default date range (next 30 days)
+    const today = new Date();
+    const thirtyDaysLater = new Date();
+    thirtyDaysLater.setDate(today.getDate() + 30);
+    
+    document.getElementById('bulkStartDate').value = today.toISOString().split('T')[0];
+    document.getElementById('bulkEndDate').value = thirtyDaysLater.toISOString().split('T')[0];
+    
+    openModal('bulkTopicModal');
+};
+
+function populateBulkSubjectDropdown() {
+    const select = document.getElementById('bulkTopicSubject');
+    select.innerHTML = '<option value="">Choose Subject</option>';
+    subjects.forEach(subject => {
+        const option = document.createElement('option');
+        option.value = subject._id;
+        option.textContent = `${subject.name} (${subject.class.name})`;
+        select.appendChild(option);
+    });
+}
+
+window.loadChaptersForBulk = function() {
+    const subjectId = document.getElementById('bulkTopicSubject').value;
+    const chapterSelect = document.getElementById('bulkTopicChapter');
+    
+    chapterSelect.innerHTML = '<option value="">Choose Chapter</option>';
+    
+    if (subjectId) {
+        const subject = subjects.find(s => s._id === subjectId);
+        if (subject && subject.chapters) {
+            subject.chapters.forEach(chapter => {
+                const option = document.createElement('option');
+                option.value = chapter._id;
+                option.textContent = `${chapter.number}. ${chapter.title}`;
+                chapterSelect.appendChild(option);
+            });
+        }
+    }
+};
+
+window.addBulkTopicRow = function() {
+    const topicsList = document.getElementById('bulkTopicsList');
+    
+    const topicItem = document.createElement('div');
+    topicItem.className = 'bulk-topic-item';
+    topicItem.innerHTML = `
+        <input type="text" class="form-input topic-title-input" placeholder="Topic title..." required>
+        <input type="date" class="form-input topic-deadline-input" required>
+        <button type="button" class="remove-topic-btn" onclick="removeBulkTopicRow(this)">×</button>
+    `;
+    
+    topicsList.appendChild(topicItem);
+    
+    // Set default deadline to tomorrow if it's the first topic
+    if (topicsList.children.length === 1) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 7); // Default to next week
+        topicItem.querySelector('.topic-deadline-input').value = tomorrow.toISOString().split('T')[0];
+    }
+};
+
+window.removeBulkTopicRow = function(button) {
+    const topicsList = document.getElementById('bulkTopicsList');
+    if (topicsList.children.length > 1) {
+        button.parentElement.remove();
+    } else {
+        showAlert('You need at least one topic', 'warning');
+    }
+};
+
+window.toggleAutoDeadlines = function() {
+    const checkbox = document.getElementById('autoDeadlines');
+    const deadlineRange = document.getElementById('deadlineRange');
+    const topicDeadlines = document.querySelectorAll('.topic-deadline-input');
+    
+    if (checkbox.checked) {
+        deadlineRange.style.display = 'block';
+        topicDeadlines.forEach(input => input.disabled = true);
+    } else {
+        deadlineRange.style.display = 'none';
+        topicDeadlines.forEach(input => input.disabled = false);
+    }
+};
+
+async function saveBulkTopics(e) {
+    e.preventDefault();
+    
+    const chapterId = document.getElementById('bulkTopicChapter').value;
+    if (!chapterId) {
+        showAlert('Please select a chapter', 'danger');
+        return;
+    }
+    
+    const topicItems = document.querySelectorAll('.bulk-topic-item');
+    if (topicItems.length === 0) {
+        showAlert('Please add at least one topic', 'danger');
+        return;
+    }
+    
+    const autoDeadlines = document.getElementById('autoDeadlines').checked;
+    let startDate, endDate;
+    
+    if (autoDeadlines) {
+        startDate = new Date(document.getElementById('bulkStartDate').value);
+        endDate = new Date(document.getElementById('bulkEndDate').value);
+        
+        if (startDate >= endDate) {
+            showAlert('End date must be after start date', 'danger');
+            return;
+        }
+    }
+    
+    try {
+        let successCount = 0;
+        const totalTopics = topicItems.length;
+        
+        for (let i = 0; i < topicItems.length; i++) {
+            const item = topicItems[i];
+            const title = item.querySelector('.topic-title-input').value.trim();
+            
+            if (!title) continue;
+            
+            let deadline;
+            if (autoDeadlines) {
+                // Distribute deadlines evenly across the date range
+                const daysBetween = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+                const interval = Math.floor(daysBetween / totalTopics);
+                const topicDate = new Date(startDate);
+                topicDate.setDate(startDate.getDate() + (interval * (i + 1)));
+                deadline = topicDate.toISOString().split('T')[0];
+            } else {
+                deadline = item.querySelector('.topic-deadline-input').value;
+            }
+            
+            const topicData = {
+                title: title,
+                deadline: deadline,
+                chapter: chapterId,
+                notes: `Created via Bulk Setup on ${new Date().toLocaleDateString()}`
+            };
+            
+            const response = await fetch(`${API_BASE}/syllabus/topics`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(topicData)
+            });
+            
+            if (response.ok) {
+                successCount++;
+            } else {
+                console.warn(`Failed to create topic: ${title}`);
+            }
+        }
+        
+        await loadData();
+        renderAll();
+        updateSetupProgress();
+        closeModal('bulkTopicModal');
+        showAlert(`Successfully created ${successCount} out of ${totalTopics} topics! 🎉`, 'success');
+        
+    } catch (error) {
+        showAlert('Error creating topics: ' + error.message, 'danger');
+    }
+}
+
+// Setup Progress Tracking
+function updateSetupProgress() {
+    const hasClasses = classes.length > 0;
+    const hasSubjects = subjects.length > 0;
+    const hasTopics = subjects.some(s => s.chapters.some(c => c.topics.length > 0));
+    
+    // Update step states
+    const step1 = document.getElementById('step1');
+    const step2 = document.getElementById('step2');
+    const step3 = document.getElementById('step3');
+    
+    step1.classList.toggle('completed', hasClasses);
+    step2.classList.toggle('completed', hasSubjects);
+    step3.classList.toggle('completed', hasTopics);
+    
+    // Calculate progress percentage
+    let progress = 0;
+    if (hasClasses) progress += 33;
+    if (hasSubjects) progress += 33;
+    if (hasTopics) progress += 34;
+    
+    const progressEl = document.getElementById('setupProgress');
+    if (progressEl) {
+        progressEl.textContent = `${progress}% Complete`;
+        
+        if (progress === 100) {
+            progressEl.textContent = '✅ Setup Complete!';
+            progressEl.style.background = 'rgba(16, 185, 129, 0.2)';
+            progressEl.style.color = '#10b981';
+        }
+    }
+} 

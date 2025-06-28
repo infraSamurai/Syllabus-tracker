@@ -18,15 +18,8 @@ export const createSubject = async (subjectData: Partial<ISubject>): Promise<ISu
   const subject = new Subject(subjectData);
   await subject.save();
 
-  const teacher = await User.findOne({ role: 'teacher' });
-  if (!teacher) {
-    console.warn('No teacher found in the database. Progress tracking will not be enabled for this subject.');
-    return subject;
-  }
-
   const progress = new Progress({
     subject: subject._id,
-    teacher: teacher._id,
     totalChapters: subjectData.chapters?.length || 0,
     completedChapters: 0,
     totalTopics: 0, // This should be calculated when chapters/topics are added
