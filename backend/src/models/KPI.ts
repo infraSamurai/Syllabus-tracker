@@ -5,11 +5,11 @@ export interface IKPI extends Document {
   title: string;
   description?: string;
   target: number;
-  currentValue: number;
-  achieved: boolean;
+  current: number;
+  unit: string;
+  category: 'completion' | 'quality' | 'timeliness' | 'engagement';
+  isAchieved: boolean;
   achievedAt?: Date;
-  deadline: Date;
-  priority: 'low' | 'medium' | 'high';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,15 +19,27 @@ const KPISchema = new Schema<IKPI>({
   title: { type: String, required: true },
   description: { type: String },
   target: { type: Number, required: true },
-  currentValue: { type: Number, default: 0 },
-  achieved: { type: Boolean, default: false },
-  achievedAt: { type: Date },
-  deadline: { type: Date, required: true },
-  priority: { 
+  current: { type: Number, default: 0 },
+  unit: { type: String, required: true }, // e.g., '%', 'topics', 'days'
+  category: { 
     type: String, 
-    enum: ['low', 'medium', 'high'], 
-    default: 'medium' 
-  }
+    enum: ['completion', 'quality', 'timeliness', 'engagement'],
+    required: true 
+  },
+  isAchieved: { type: Boolean, default: false },
+  achievedAt: { type: Date }
 }, { timestamps: true });
+
+// Auto-update achievement status
+KPISchema.pre('save', function(next) {
+  if (this.current >= this.target && !this.isAchieved) {
+    this.isAchieved = true;
+    this.achievedAt = new Date();
+  } else if (this.current < this.target && this.isAchieved) {
+    this.isAchieved = false;
+    this.achievedAt = undefined;
+  }
+  next();
+});
 
 export default model<IKPI>('KPI', KPISchema); 

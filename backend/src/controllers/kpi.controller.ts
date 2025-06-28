@@ -7,11 +7,9 @@ export class KPIController {
     try {
       const { subjectId } = req.query;
       const filter = subjectId ? { subject: subjectId } : {};
-      
       const kpis = await KPI.find(filter)
         .populate('subject', 'name code')
-        .sort({ priority: -1, deadline: 1 });
-      
+        .sort({ createdAt: -1 });
       res.json(kpis);
     } catch (error) {
       next(error);
@@ -31,20 +29,13 @@ export class KPIController {
   async updateKPI(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const { currentValue, achieved } = req.body;
-      
-      const updateData: any = { ...req.body };
-      
-      // If KPI is marked as achieved, set achievedAt
-      if (achieved && !updateData.achievedAt) {
-        updateData.achievedAt = new Date();
-      }
-      
-      const kpi = await KPI.findByIdAndUpdate(id, updateData, { new: true });
+      const kpi = await KPI.findByIdAndUpdate(id, req.body, { 
+        new: true, 
+        runValidators: true 
+      });
       if (!kpi) {
         return res.status(404).json({ message: 'KPI not found' });
       }
-      
       res.json(kpi);
     } catch (error) {
       next(error);
@@ -54,62 +45,61 @@ export class KPIController {
   async deleteKPI(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      await KPI.findByIdAndDelete(id);
-      res.status(204).send();
+      const kpi = await KPI.findByIdAndDelete(id);
+      if (!kpi) {
+        return res.status(404).json({ message: 'KPI not found' });
+      }
+      res.json({ message: 'KPI deleted successfully' });
     } catch (error) {
       next(error);
     }
   }
 
-  async getKPIAnalytics(req: Request, res: Response, next: NextFunction) {
+  async updateProgress(req: Request, res: Response, next: NextFunction) {
     try {
-      const analytics = await KPI.aggregate([
-        {
-          $group: {
-            _id: '$priority',
-            total: { $sum: 1 },
-            achieved: { 
-              $sum: { $cond: [{ $eq: ['$achieved', true] }, 1, 0] } 
-            },
-            avgProgress: { 
-              $avg: { 
-                $multiply: [
-                  { $divide: ['$currentValue', '$target'] }, 
-                  100
-                ] 
-              } 
-            }
-          }
-        }
-      ]);
+      const { id } = req.params;
+      const { current } = req.body;
       
-      const subjectKPIs = await KPI.aggregate([
-        {
-          $lookup: {
-            from: 'subjects',
-            localField: 'subject',
-            foreignField: '_id',
-            as: 'subjectData'
-          }
-        },
-        { $unwind: '$subjectData' },
-        {
-          $group: {
-            _id: '$subjectData.department',
-            totalKPIs: { $sum: 1 },
-            achievedKPIs: { 
-              $sum: { $cond: [{ $eq: ['$achieved', true] }, 1, 0] } 
-            }
-          }
-        }
-      ]);
+      const kpi = await KPI.findById(id);
+      if (!kpi) {
+        return res.status(404).json({ message: 'KPI not found' });
+      }
       
-      res.json({
-        byPriority: analytics,
-        byDepartment: subjectKPIs
-      });
+      kpi.current = current;
+      await kpi.save(); // This will trigger the pre-save hook to update achievement status
+      
+      res.json(kpi);
     } catch (error) {
       next(error);
     }
   }
-} 
+
+  async getKPIDashboard(req: Request, res: Response, next: NextFunction) {
+    try {
+      const kpis = await KPI.find().populate('subject', 'name code class');
+      
+      const dashboard = {
+        total: kpis.length,
+        achieved: kpis.filter(k => k.isAchieved).length,
+        inProgress: kpis.filter(k => !k.isAchieved && k.current > 0).length,
+        notStarted: kpis.filter(k => k.current === 0).length,
+        byCategory: {
+          completion: kpis.filter(k => k.category === 'completion'),
+          quality: kpis.filter(k => k.category === 'quality'),
+          timeliness: kpis.filter(k => k.category === 'timeliness'),
+          engagement: kpis.filter(k => k.category === 'engagement')
+        },
+        recentAchievements: kpis
+          .filter(k => k.isAchieved && k.achievedAt)
+          .sort((a, b) => b.achievedAt!.getTime() - a.achievedAt!.getTime())
+          .slice(0, 5)
+      };
+      
+      res.json(dashboard);
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+export const kpiController = new KPIController(); 

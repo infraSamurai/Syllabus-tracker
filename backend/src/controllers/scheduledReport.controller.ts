@@ -1,16 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import ScheduledReport from '../models/ScheduledReport';
-import { ReportSchedulerService } from '../services/reportScheduler.service';
+import { exportService } from '../services/export.service';
+import { emailService } from '../services/email.service';
 
 export class ScheduledReportController {
-  private schedulerService = new ReportSchedulerService();
-
   async getScheduledReports(req: Request, res: Response, next: NextFunction) {
     try {
       const reports = await ScheduledReport.find()
         .populate('createdBy', 'name email')
-        .sort({ nextRun: 1 });
-      
+        .populate('filters.classes', 'name')
+        .populate('filters.subjects', 'name code')
+        .sort({ createdAt: -1 });
       res.json(reports);
     } catch (error) {
       next(error);
@@ -21,18 +21,10 @@ export class ScheduledReportController {
     try {
       const reportData = {
         ...req.body,
-        createdBy: req.user?.id || req.body.createdBy,
-        nextRun: this.calculateNextRun(req.body.schedule)
+        createdBy: req.user?.id
       };
-      
       const report = new ScheduledReport(reportData);
       await report.save();
-      
-      // Schedule the report if active
-      if (report.isActive) {
-        this.schedulerService.scheduleReport(report);
-      }
-      
       res.status(201).json(report);
     } catch (error) {
       next(error);
@@ -42,19 +34,13 @@ export class ScheduledReportController {
   async updateScheduledReport(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      
-      const report = await ScheduledReport.findByIdAndUpdate(id, req.body, { new: true });
+      const report = await ScheduledReport.findByIdAndUpdate(id, req.body, { 
+        new: true, 
+        runValidators: true 
+      });
       if (!report) {
         return res.status(404).json({ message: 'Scheduled report not found' });
       }
-      
-      // Update scheduler
-      if (report.isActive) {
-        this.schedulerService.scheduleReport(report);
-      } else {
-        this.schedulerService.stopReport(id);
-      }
-      
       res.json(report);
     } catch (error) {
       next(error);
@@ -64,56 +50,110 @@ export class ScheduledReportController {
   async deleteScheduledReport(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      
-      // Stop the scheduled job
-      this.schedulerService.stopReport(id);
-      
-      await ScheduledReport.findByIdAndDelete(id);
-      res.status(204).send();
+      const report = await ScheduledReport.findByIdAndDelete(id);
+      if (!report) {
+        return res.status(404).json({ message: 'Scheduled report not found' });
+      }
+      res.json({ message: 'Scheduled report deleted successfully' });
     } catch (error) {
       next(error);
     }
   }
 
-  async runReportNow(req: Request, res: Response, next: NextFunction) {
+  async toggleReportStatus(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      
       const report = await ScheduledReport.findById(id);
       if (!report) {
         return res.status(404).json({ message: 'Scheduled report not found' });
       }
       
-      // Execute report immediately
-      // This would trigger the report generation and sending
-      res.json({ message: 'Report execution started', reportId: id });
+      report.isActive = !report.isActive;
+      await report.save();
+      
+      res.json({ 
+        message: `Report ${report.isActive ? 'activated' : 'deactivated'} successfully`,
+        report 
+      });
     } catch (error) {
       next(error);
     }
   }
 
-  private calculateNextRun(schedule: any): Date {
-    const now = new Date();
-    const [hours, minutes] = schedule.time.split(':').map(Number);
-    const next = new Date();
-    
-    next.setHours(hours, minutes, 0, 0);
-    
-    // If time has already passed today, move to next occurrence
-    if (next <= now) {
-      switch (schedule.frequency) {
-        case 'daily':
-          next.setDate(next.getDate() + 1);
-          break;
+  async runScheduledReport(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const report = await ScheduledReport.findById(id)
+        .populate('filters.classes')
+        .populate('filters.subjects');
+        
+      if (!report) {
+        return res.status(404).json({ message: 'Scheduled report not found' });
+      }
+
+      // Generate report based on type and format
+      let reportData: Buffer;
+      let fileName: string;
+      
+      switch (report.reportType) {
         case 'weekly':
-          next.setDate(next.getDate() + 7);
+          reportData = await exportService.generateWeeklyReport(report.format, report.filters);
+          fileName = `weekly-report-${new Date().toISOString().split('T')[0]}`;
           break;
         case 'monthly':
-          next.setMonth(next.getMonth() + 1);
+          reportData = await exportService.generateMonthlyReport(report.format, report.filters);
+          fileName = `monthly-report-${new Date().toISOString().split('T')[0]}`;
+          break;
+        default:
+          // For custom or daily reports, use weekly as default
+          reportData = await exportService.generateWeeklyReport(report.format, report.filters);
+          fileName = `custom-report-${new Date().toISOString().split('T')[0]}`;
           break;
       }
+
+      // Send to recipients
+      if (report.recipients.length > 0) {
+        await emailService.sendReportEmail(
+          report.recipients,
+          report.name,
+          reportData,
+          fileName,
+          report.format
+        );
+      }
+
+      // Update last run and calculate next run
+      report.lastRun = new Date();
+      await report.save();
+
+      res.json({ 
+        message: 'Report generated and sent successfully',
+        lastRun: report.lastRun,
+        nextRun: report.nextRun
+      });
+    } catch (error) {
+      next(error);
     }
-    
-    return next;
   }
-} 
+
+  async getUpcomingReports(req: Request, res: Response, next: NextFunction) {
+    try {
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const upcomingReports = await ScheduledReport.find({
+        isActive: true,
+        nextRun: { $gte: now, $lte: tomorrow }
+      })
+      .populate('createdBy', 'name')
+      .sort({ nextRun: 1 });
+
+      res.json(upcomingReports);
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+export const scheduledReportController = new ScheduledReportController(); 

@@ -54,10 +54,11 @@ export class ExportController {
         { header: 'Subject', key: 'subject', width: 30 },
         { header: 'KPI Title', key: 'title', width: 40 },
         { header: 'Target', key: 'target', width: 15 },
-        { header: 'Current Value', key: 'currentValue', width: 15 },
+        { header: 'Current Value', key: 'current', width: 15 },
+        { header: 'Unit', key: 'unit', width: 15 },
+        { header: 'Category', key: 'category', width: 15 },
         { header: 'Progress %', key: 'progress', width: 15 },
-        { header: 'Achieved', key: 'achieved', width: 15 },
-        { header: 'Priority', key: 'priority', width: 15 }
+        { header: 'Achieved', key: 'isAchieved', width: 15 }
       ];
       
       kpis.forEach(kpi => {
@@ -65,10 +66,11 @@ export class ExportController {
           subject: (kpi.subject as any)?.name || 'N/A',
           title: kpi.title,
           target: kpi.target,
-          currentValue: kpi.currentValue,
-          progress: ((kpi.currentValue / kpi.target) * 100).toFixed(2) + '%',
-          achieved: kpi.achieved ? 'Yes' : 'No',
-          priority: kpi.priority
+          current: kpi.current,
+          unit: kpi.unit,
+          category: kpi.category,
+          progress: ((kpi.current / kpi.target) * 100).toFixed(2) + '%',
+          isAchieved: kpi.isAchieved ? 'Yes' : 'No'
         });
       });
       
@@ -147,11 +149,12 @@ export class ExportController {
             subject: (k.subject as any)?.name || 'N/A',
             title: k.title,
             target: k.target,
-            currentValue: k.currentValue,
-            achieved: k.achieved,
-            priority: k.priority
+            current: k.current,
+            unit: k.unit,
+            category: k.category,
+            isAchieved: k.isAchieved
           }));
-          fields = ['subject', 'title', 'target', 'currentValue', 'achieved', 'priority'];
+          fields = ['subject', 'title', 'target', 'current', 'unit', 'category', 'isAchieved'];
           break;
           
         default:

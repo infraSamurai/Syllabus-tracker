@@ -1,14 +1,21 @@
 import { Router } from 'express';
-import { MilestoneController } from '../controllers/milestone.controller';
+import { milestoneController } from '../controllers/milestone.controller';
+import { protect, authorize } from '../middleware/auth.middleware';
 
 const router = Router();
-const milestoneController = new MilestoneController();
 
+// Get all milestones
 router.get('/', milestoneController.getMilestones.bind(milestoneController));
-router.post('/', milestoneController.createMilestone.bind(milestoneController));
-router.patch('/:id', milestoneController.updateMilestone.bind(milestoneController));
-router.delete('/:id', milestoneController.deleteMilestone.bind(milestoneController));
-router.post('/:id/check', milestoneController.checkMilestoneAchievement.bind(milestoneController));
-router.get('/achievements/:userId', milestoneController.getUserAchievements.bind(milestoneController));
+
+// Get user's milestones
+router.get('/my-milestones', protect, milestoneController.getUserMilestones.bind(milestoneController));
+
+// Check for new milestone achievements
+router.post('/check', protect, milestoneController.checkUserMilestones.bind(milestoneController));
+
+// Admin routes
+router.post('/', protect, authorize('admin'), milestoneController.createMilestone.bind(milestoneController));
+router.patch('/:id', protect, authorize('admin'), milestoneController.updateMilestone.bind(milestoneController));
+router.delete('/:id', protect, authorize('admin'), milestoneController.deleteMilestone.bind(milestoneController));
 
 export default router; 

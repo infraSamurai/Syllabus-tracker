@@ -1,908 +1,1646 @@
-I'll implement a complete backend for the Syllabus Tracker Pro using Node.js, Express, and MongoDB. This backend will support all the features we've implemented in the frontend.
+// backend/src/models/KPI.ts
+import { Schema, model, Document, Types } from 'mongoose';
 
-bash
-mkdir syllabus-tracker-backend
-cd syllabus-tracker-backend
-npm init -y
-npm install express mongoose body-parser cors morgan dotenv
-npm install -D nodemon
-mkdir config controllers models routes services
-Here's the backend implementation:
+export interface IKPI extends Document {
+  subject: Types.ObjectId;
+  title: string;
+  description?: string;
+  target: number;
+  currentValue: number;
+  achieved: boolean;
+  achievedAt?: Date;
+  deadline: Date;
+  priority: 'low' | 'medium' | 'high';
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-1. server.js - Main entry point
-javascript
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const morgan = require('morgan');
-
-const app = express();
-
-// Middleware
-app.use(cors());
-app.use(bodyParser.json());
-app.use(morgan('dev'));
-
-// Database Connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log('MongoDB Connected'))
-.catch(err => console.log(err));
-
-// Routes
-const subjectRoutes = require('./routes/subjectRoutes');
-const kpiRoutes = require('./routes/kpiRoutes');
-const progressRoutes = require('./routes/progressRoutes');
-const reportRoutes = require('./routes/reportRoutes');
-const analyticsRoutes = require('./routes/analyticsRoutes');
-const milestoneRoutes = require('./routes/milestoneRoutes');
-const taskRoutes = require('./routes/taskRoutes');
-const exportRoutes = require('./routes/exportRoutes');
-
-app.use('/api/subjects', subjectRoutes);
-app.use('/api/kpis', kpiRoutes);
-app.use('/api/progress', progressRoutes);
-app.use('/api/reports', reportRoutes);
-app.use('/api/analytics', analyticsRoutes);
-app.use('/api/milestones', milestoneRoutes);
-app.use('/api/tasks', taskRoutes);
-app.use('/api/export', exportRoutes);
-
-// Error Handling Middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send('Something broke!');
-});
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-2. .env - Environment variables
-text
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/syllabus-tracker
-3. Models
-models/Subject.js
-javascript
-const mongoose = require('mongoose');
-
-const SubjectSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  code: { type: String, required: true, unique: true },
-  department: { type: String, required: true },
-  class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
-  chapters: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Chapter' }],
-  progress: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now },
-  deadline: Date
-});
-
-module.exports = mongoose.model('Subject', SubjectSchema);
-models/Class.js
-javascript
-const mongoose = require('mongoose');
-
-const ClassSchema = new mongoose.Schema({
-  name: { type: String, required: true, unique: true },
-  subjects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subject' }],
-  createdAt: { type: Date, default: Date.now }
-});
-
-module.exports = mongoose.model('Class', ClassSchema);
-models/Chapter.js
-javascript
-const mongoose = require('mongoose');
-
-const ChapterSchema = new mongoose.Schema({
-  subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
+const KPISchema = new Schema<IKPI>({
+  subject: { type: Schema.Types.ObjectId, ref: 'Subject', required: true },
   title: { type: String, required: true },
-  topics: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Topic' }],
-  order: Number,
-  createdAt: { type: Date, default: Date.now }
-});
-
-module.exports = mongoose.model('Chapter', ChapterSchema);
-models/Topic.js
-javascript
-const mongoose = require('mongoose');
-
-const TopicSchema = new mongoose.Schema({
-  chapter: { type: mongoose.Schema.Types.ObjectId, ref: 'Chapter', required: true },
-  title: { type: String, required: true },
-  description: String,
-  completed: { type: Boolean, default: false },
-  order: Number,
-  createdAt: { type: Date, default: Date.now },
-  completedAt: Date
-});
-
-module.exports = mongoose.model('Topic', TopicSchema);
-models/KPI.js
-javascript
-const mongoose = require('mongoose');
-
-const KPISchema = new mongoose.Schema({
-  subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
-  title: { type: String, required: true },
-  description: String,
+  description: { type: String },
   target: { type: Number, required: true },
-  current: { type: Number, default: 0 },
+  currentValue: { type: Number, default: 0 },
   achieved: { type: Boolean, default: false },
-  deadline: Date,
-  createdAt: { type: Date, default: Date.now },
-  achievedAt: Date
-});
+  achievedAt: { type: Date },
+  deadline: { type: Date, required: true },
+  priority: { 
+    type: String, 
+    enum: ['low', 'medium', 'high'], 
+    default: 'medium' 
+  }
+}, { timestamps: true });
 
-module.exports = mongoose.model('KPI', KPISchema);
-models/Progress.js
-javascript
-const mongoose = require('mongoose');
+export default model<IKPI>('KPI', KPISchema);
 
-const ProgressSchema = new mongoose.Schema({
-  subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
-  percentage: { type: Number, required: true },
-  completedTopics: { type: Number, default: 0 },
-  totalTopics: { type: Number, default: 0 },
-  date: { type: Date, default: Date.now }
-});
+// backend/src/models/ScheduledReport.ts
+import { Schema, model, Document, Types } from 'mongoose';
 
-module.exports = mongoose.model('Progress', ProgressSchema);
-models/Milestone.js
-javascript
-const mongoose = require('mongoose');
+export interface IScheduledReport extends Document {
+  name: string;
+  description?: string;
+  reportType: 'weekly' | 'monthly' | 'custom';
+  customTemplate?: object;
+  schedule: {
+    frequency: 'daily' | 'weekly' | 'monthly';
+    dayOfWeek?: number;
+    dayOfMonth?: number;
+    time: string;
+  };
+  recipients: string[];
+  format: 'pdf' | 'excel' | 'csv' | 'json';
+  filters?: object;
+  isActive: boolean;
+  lastRun?: Date;
+  nextRun: Date;
+  createdBy: Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-const MilestoneSchema = new mongoose.Schema({
+const ScheduledReportSchema = new Schema<IScheduledReport>({
   name: { type: String, required: true },
-  description: String,
-  type: { type: String, enum: ['progress', 'completion', 'kpi', 'custom'], required: true },
-  target: { type: Number, required: true },
-  reward: { type: String, required: true },
-  achieved: { type: Boolean, default: false },
-  achievedAt: Date,
-  createdAt: { type: Date, default: Date.now }
-});
-
-module.exports = mongoose.model('Milestone', MilestoneSchema);
-models/ScheduledReport.js
-javascript
-const mongoose = require('mongoose');
-
-const ScheduledReportSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  description: String,
-  frequency: { type: String, enum: ['daily', 'weekly', 'monthly'], required: true },
+  description: { type: String },
+  reportType: { 
+    type: String, 
+    enum: ['weekly', 'monthly', 'custom'], 
+    required: true 
+  },
+  customTemplate: { type: Schema.Types.Mixed },
+  schedule: {
+    frequency: { 
+      type: String, 
+      enum: ['daily', 'weekly', 'monthly'], 
+      required: true 
+    },
+    dayOfWeek: { type: Number, min: 0, max: 6 },
+    dayOfMonth: { type: Number, min: 1, max: 31 },
+    time: { type: String, required: true }
+  },
   recipients: [{ type: String }],
-  lastRun: Date,
+  format: { 
+    type: String, 
+    enum: ['pdf', 'excel', 'csv', 'json'], 
+    default: 'pdf' 
+  },
+  filters: { type: Schema.Types.Mixed },
+  isActive: { type: Boolean, default: true },
+  lastRun: { type: Date },
   nextRun: { type: Date, required: true },
-  createdAt: { type: Date, default: Date.now }
-});
+  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
+}, { timestamps: true });
 
-module.exports = mongoose.model('ScheduledReport', ScheduledReportSchema);
-models/Task.js
-javascript
-const mongoose = require('mongoose');
+export default model<IScheduledReport>('ScheduledReport', ScheduledReportSchema);
 
-const TaskSchema = new mongoose.Schema({
-  subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
-  title: { type: String, required: true },
-  description: String,
-  priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
-  due: Date,
-  completed: { type: Boolean, default: false },
-  completedAt: Date,
-  createdAt: { type: Date, default: Date.now }
-});
+// backend/src/models/ProgressHistory.ts
+import { Schema, model, Document, Types } from 'mongoose';
 
-module.exports = mongoose.model('Task', TaskSchema);
-4. Controllers
-controllers/subjectController.js
-javascript
-const Subject = require('../models/Subject');
-const Class = require('../models/Class');
+export interface IProgressHistory extends Document {
+  subject: Types.ObjectId;
+  date: Date;
+  percentageComplete: number;
+  topicsCompleted: number;
+  totalTopics: number;
+  chaptersCompleted: number;
+  totalChapters: number;
+  kpisAchieved: number;
+  totalKpis: number;
+  predictedCompletionDate?: Date;
+  notes?: string;
+}
 
-// Create a new subject
-exports.createSubject = async (req, res) => {
-  try {
-    const { name, code, department, classId, deadline } = req.body;
-    
-    // Check if class exists
-    const classExists = await Class.findById(classId);
-    if (!classExists) {
-      return res.status(400).json({ message: 'Class not found' });
+const ProgressHistorySchema = new Schema<IProgressHistory>({
+  subject: { type: Schema.Types.ObjectId, ref: 'Subject', required: true },
+  date: { type: Date, required: true },
+  percentageComplete: { type: Number, required: true },
+  topicsCompleted: { type: Number, required: true },
+  totalTopics: { type: Number, required: true },
+  chaptersCompleted: { type: Number, required: true },
+  totalChapters: { type: Number, required: true },
+  kpisAchieved: { type: Number, default: 0 },
+  totalKpis: { type: Number, default: 0 },
+  predictedCompletionDate: { type: Date },
+  notes: { type: String }
+}, { timestamps: true });
+
+// Create compound index for efficient queries
+ProgressHistorySchema.index({ subject: 1, date: -1 });
+
+export default model<IProgressHistory>('ProgressHistory', ProgressHistorySchema);
+
+// backend/src/models/Milestone.ts
+import { Schema, model, Document, Types } from 'mongoose';
+
+export interface IMilestone extends Document {
+  name: string;
+  description: string;
+  type: 'progress' | 'completion' | 'kpi' | 'custom';
+  target: number;
+  reward: {
+    type: 'badge' | 'certificate' | 'points' | 'custom';
+    value: string;
+    points?: number;
+  };
+  conditions: {
+    metric: string;
+    operator: 'equals' | 'greater' | 'less' | 'between';
+    value: number;
+    value2?: number;
+  }[];
+  achievedBy: Types.ObjectId[];
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const MilestoneSchema = new Schema<IMilestone>({
+  name: { type: String, required: true },
+  description: { type: String, required: true },
+  type: { 
+    type: String, 
+    enum: ['progress', 'completion', 'kpi', 'custom'], 
+    required: true 
+  },
+  target: { type: Number, required: true },
+  reward: {
+    type: { 
+      type: String, 
+      enum: ['badge', 'certificate', 'points', 'custom'], 
+      required: true 
+    },
+    value: { type: String, required: true },
+    points: { type: Number }
+  },
+  conditions: [{
+    metric: { type: String, required: true },
+    operator: { 
+      type: String, 
+      enum: ['equals', 'greater', 'less', 'between'], 
+      required: true 
+    },
+    value: { type: Number, required: true },
+    value2: { type: Number }
+  }],
+  achievedBy: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  isActive: { type: Boolean, default: true }
+}, { timestamps: true });
+
+export default model<IMilestone>('Milestone', MilestoneSchema);
+
+// backend/src/controllers/kpi.controller.ts
+import { Request, Response, NextFunction } from 'express';
+import KPI from '../models/KPI';
+import Subject from '../models/Subject';
+
+export class KPIController {
+  async getKPIs(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { subjectId } = req.query;
+      const filter = subjectId ? { subject: subjectId } : {};
+      
+      const kpis = await KPI.find(filter)
+        .populate('subject', 'name code')
+        .sort({ priority: -1, deadline: 1 });
+      
+      res.json(kpis);
+    } catch (error) {
+      next(error);
     }
-    
-    const subject = new Subject({
-      name,
-      code,
-      department,
-      class: classId,
-      deadline
-    });
-    
-    await subject.save();
-    
-    // Add subject to class
-    classExists.subjects.push(subject._id);
-    await classExists.save();
-    
-    res.status(201).json(subject);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
   }
-};
 
-// Get all subjects
-exports.getSubjects = async (req, res) => {
-  try {
-    const subjects = await Subject.find().populate('class', 'name');
-    res.json(subjects);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  async createKPI(req: Request, res: Response, next: NextFunction) {
+    try {
+      const kpi = new KPI(req.body);
+      await kpi.save();
+      res.status(201).json(kpi);
+    } catch (error) {
+      next(error);
+    }
   }
-};
 
-// Get a single subject
-exports.getSubject = async (req, res) => {
-  try {
-    const subject = await Subject.findById(req.params.id)
-      .populate('class', 'name')
+  async updateKPI(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { currentValue, achieved } = req.body;
+      
+      const updateData: any = { ...req.body };
+      
+      // If KPI is marked as achieved, set achievedAt
+      if (achieved && !updateData.achievedAt) {
+        updateData.achievedAt = new Date();
+      }
+      
+      const kpi = await KPI.findByIdAndUpdate(id, updateData, { new: true });
+      if (!kpi) {
+        return res.status(404).json({ message: 'KPI not found' });
+      }
+      
+      res.json(kpi);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteKPI(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      await KPI.findByIdAndDelete(id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getKPIAnalytics(req: Request, res: Response, next: NextFunction) {
+    try {
+      const analytics = await KPI.aggregate([
+        {
+          $group: {
+            _id: '$priority',
+            total: { $sum: 1 },
+            achieved: { 
+              $sum: { $cond: [{ $eq: ['$achieved', true] }, 1, 0] } 
+            },
+            avgProgress: { 
+              $avg: { 
+                $multiply: [
+                  { $divide: ['$currentValue', '$target'] }, 
+                  100
+                ] 
+              } 
+            }
+          }
+        }
+      ]);
+      
+      const subjectKPIs = await KPI.aggregate([
+        {
+          $lookup: {
+            from: 'subjects',
+            localField: 'subject',
+            foreignField: '_id',
+            as: 'subjectData'
+          }
+        },
+        { $unwind: '$subjectData' },
+        {
+          $group: {
+            _id: '$subjectData.department',
+            totalKPIs: { $sum: 1 },
+            achievedKPIs: { 
+              $sum: { $cond: [{ $eq: ['$achieved', true] }, 1, 0] } 
+            }
+          }
+        }
+      ]);
+      
+      res.json({
+        byPriority: analytics,
+        byDepartment: subjectKPIs
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+// backend/src/controllers/export.controller.ts
+import { Request, Response, NextFunction } from 'express';
+import ExcelJS from 'exceljs';
+import { Parser } from 'json2csv';
+import Subject from '../models/Subject';
+import Chapter from '../models/Chapter';
+import Topic from '../models/Topic';
+import KPI from '../models/KPI';
+import { Progress } from '../models/Progress';
+
+export class ExportController {
+  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { type, filters } = req.body;
+      
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Syllabus Tracker Pro';
+      workbook.created = new Date();
+      
+      // Add subjects sheet
+      const subjectSheet = workbook.addWorksheet('Subjects');
+      const subjects = await Subject.find(filters?.subjects || {})
+        .populate('class')
+        .populate('chapters');
+      
+      subjectSheet.columns = [
+        { header: 'Subject Name', key: 'name', width: 30 },
+        { header: 'Code', key: 'code', width: 15 },
+        { header: 'Department', key: 'department', width: 20 },
+        { header: 'Class', key: 'className', width: 15 },
+        { header: 'Total Chapters', key: 'totalChapters', width: 15 },
+        { header: 'Deadline', key: 'deadline', width: 15 }
+      ];
+      
+      subjects.forEach(subject => {
+        subjectSheet.addRow({
+          name: subject.name,
+          code: subject.code,
+          department: subject.department,
+          className: (subject.class as any)?.name || 'N/A',
+          totalChapters: subject.chapters.length,
+          deadline: subject.deadline
+        });
+      });
+      
+      // Add KPIs sheet
+      const kpiSheet = workbook.addWorksheet('KPIs');
+      const kpis = await KPI.find(filters?.kpis || {})
+        .populate('subject', 'name code');
+      
+      kpiSheet.columns = [
+        { header: 'Subject', key: 'subject', width: 30 },
+        { header: 'KPI Title', key: 'title', width: 40 },
+        { header: 'Target', key: 'target', width: 15 },
+        { header: 'Current Value', key: 'currentValue', width: 15 },
+        { header: 'Progress %', key: 'progress', width: 15 },
+        { header: 'Achieved', key: 'achieved', width: 15 },
+        { header: 'Priority', key: 'priority', width: 15 }
+      ];
+      
+      kpis.forEach(kpi => {
+        kpiSheet.addRow({
+          subject: (kpi.subject as any)?.name || 'N/A',
+          title: kpi.title,
+          target: kpi.target,
+          currentValue: kpi.currentValue,
+          progress: ((kpi.currentValue / kpi.target) * 100).toFixed(2) + '%',
+          achieved: kpi.achieved ? 'Yes' : 'No',
+          priority: kpi.priority
+        });
+      });
+      
+      // Add progress sheet
+      const progressSheet = workbook.addWorksheet('Progress');
+      const progressData = await Progress.find()
+        .populate('subject', 'name code')
+        .populate('teacher', 'name');
+      
+      progressSheet.columns = [
+        { header: 'Subject', key: 'subject', width: 30 },
+        { header: 'Teacher', key: 'teacher', width: 25 },
+        { header: 'Progress %', key: 'progress', width: 15 },
+        { header: 'Topics Completed', key: 'topicsCompleted', width: 20 },
+        { header: 'Total Topics', key: 'totalTopics', width: 15 },
+        { header: 'On Track', key: 'onTrack', width: 15 }
+      ];
+      
+      progressData.forEach(progress => {
+        progressSheet.addRow({
+          subject: (progress.subject as any)?.name || 'N/A',
+          teacher: (progress.teacher as any)?.name || 'N/A',
+          progress: progress.percentageComplete.toFixed(2) + '%',
+          topicsCompleted: progress.completedTopics,
+          totalTopics: progress.totalTopics,
+          onTrack: progress.isOnTrack ? 'Yes' : 'No'
+        });
+      });
+      
+      // Style the headers
+      [subjectSheet, kpiSheet, progressSheet].forEach(sheet => {
+        sheet.getRow(1).font = { bold: true };
+        sheet.getRow(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE0E0E0' }
+        };
+      });
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=syllabus-tracker-export.xlsx');
+      
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async exportToCSV(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { dataType } = req.query;
+      let data: any[] = [];
+      let fields: string[] = [];
+      
+      switch (dataType) {
+        case 'subjects':
+          const subjects = await Subject.find()
+            .populate('class')
+            .lean();
+          data = subjects.map(s => ({
+            name: s.name,
+            code: s.code,
+            department: s.department,
+            class: (s.class as any)?.name || 'N/A',
+            deadline: s.deadline
+          }));
+          fields = ['name', 'code', 'department', 'class', 'deadline'];
+          break;
+          
+        case 'kpis':
+          const kpis = await KPI.find()
+            .populate('subject', 'name')
+            .lean();
+          data = kpis.map(k => ({
+            subject: (k.subject as any)?.name || 'N/A',
+            title: k.title,
+            target: k.target,
+            currentValue: k.currentValue,
+            achieved: k.achieved,
+            priority: k.priority
+          }));
+          fields = ['subject', 'title', 'target', 'currentValue', 'achieved', 'priority'];
+          break;
+          
+        default:
+          return res.status(400).json({ message: 'Invalid data type' });
+      }
+      
+      const json2csvParser = new Parser({ fields });
+      const csv = json2csvParser.parse(data);
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=${dataType}-export.csv`);
+      res.send(csv);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async exportToJSON(req: Request, res: Response, next: NextFunction) {
+    try {
+      const subjects = await Subject.find()
+        .populate('class')
+        .populate({
+          path: 'chapters',
+          populate: { path: 'topics' }
+        })
+        .lean();
+      
+      const kpis = await KPI.find().lean();
+      const progress = await Progress.find().lean();
+      const progressHistory = await ProgressHistory.find()
+        .sort({ date: -1 })
+        .limit(1000)
+        .lean();
+      
+      const exportData = {
+        exportDate: new Date(),
+        version: '1.0',
+        data: {
+          subjects,
+          kpis,
+          progress,
+          progressHistory
+        }
+      };
+      
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', 'attachment; filename=syllabus-tracker-export.json');
+      res.json(exportData);
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+// backend/src/controllers/analytics.controller.ts
+import { Request, Response, NextFunction } from 'express';
+import Subject from '../models/Subject';
+import { Progress } from '../models/Progress';
+import ProgressHistory from '../models/ProgressHistory';
+import KPI from '../models/KPI';
+
+export class AnalyticsController {
+  async getTrendAnalysis(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { period = 30 } = req.query;
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - Number(period));
+      
+      const trendData = await ProgressHistory.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              date: { $dateToString: { format: '%Y-%m-%d', date: '$date' } }
+            },
+            avgProgress: { $avg: '$percentageComplete' },
+            totalTopicsCompleted: { $sum: '$topicsCompleted' }
+          }
+        },
+        { $sort: { '_id.date': 1 } }
+      ]);
+      
+      res.json(trendData);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getForecast(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { subjectId } = req.query;
+      
+      // Get historical progress data
+      const history = await ProgressHistory.find(
+        subjectId ? { subject: subjectId } : {}
+      )
+        .sort({ date: -1 })
+        .limit(30)
+        .lean();
+      
+      if (history.length < 2) {
+        return res.json({ 
+          message: 'Insufficient data for forecasting',
+          predictions: [] 
+        });
+      }
+      
+      // Simple linear regression for forecasting
+      const predictions = [];
+      const xValues = history.map((_, i) => i);
+      const yValues = history.map(h => h.percentageComplete);
+      
+      const n = xValues.length;
+      const sumX = xValues.reduce((a, b) => a + b, 0);
+      const sumY = yValues.reduce((a, b) => a + b, 0);
+      const sumXY = xValues.reduce((total, x, i) => total + x * yValues[i], 0);
+      const sumX2 = xValues.reduce((total, x) => total + x * x, 0);
+      
+      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+      const intercept = (sumY - slope * sumX) / n;
+      
+      // Generate predictions for next 30 days
+      for (let i = 0; i < 30; i++) {
+        const predictedProgress = Math.min(100, intercept + slope * (n + i));
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + i);
+        
+        predictions.push({
+          date: futureDate,
+          predictedProgress: Math.max(0, predictedProgress),
+          confidence: Math.max(0.5, 1 - (i * 0.01)) // Confidence decreases over time
+        });
+      }
+      
+      // Calculate estimated completion date
+      const daysToComplete = (100 - yValues[0]) / slope;
+      const completionDate = new Date();
+      completionDate.setDate(completionDate.getDate() + Math.ceil(daysToComplete));
+      
+      res.json({
+        currentProgress: yValues[0],
+        dailyProgressRate: slope,
+        estimatedCompletionDate: completionDate,
+        predictions
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getComparativeAnalysis(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { groupBy = 'department' } = req.query;
+      
+      let pipeline: any[] = [];
+      
+      switch (groupBy) {
+        case 'department':
+          pipeline = [
+            {
+              $lookup: {
+                from: 'subjects',
+                localField: 'subject',
+                foreignField: '_id',
+                as: 'subjectData'
+              }
+            },
+            { $unwind: '$subjectData' },
+            {
+              $group: {
+                _id: '$subjectData.department',
+                avgProgress: { $avg: '$percentageComplete' },
+                totalSubjects: { $sum: 1 },
+                onTrackCount: { 
+                  $sum: { $cond: [{ $eq: ['$isOnTrack', true] }, 1, 0] } 
+                }
+              }
+            }
+          ];
+          break;
+          
+        case 'class':
+          pipeline = [
+            {
+              $lookup: {
+                from: 'subjects',
+                localField: 'subject',
+                foreignField: '_id',
+                as: 'subjectData'
+              }
+            },
+            { $unwind: '$subjectData' },
+            {
+              $lookup: {
+                from: 'classes',
+                localField: 'subjectData.class',
+                foreignField: '_id',
+                as: 'classData'
+              }
+            },
+            { $unwind: '$classData' },
+            {
+              $group: {
+                _id: '$classData.name',
+                avgProgress: { $avg: '$percentageComplete' },
+                totalSubjects: { $sum: 1 },
+                onTrackCount: { 
+                  $sum: { $cond: [{ $eq: ['$isOnTrack', true] }, 1, 0] } 
+                }
+              }
+            }
+          ];
+          break;
+          
+        case 'teacher':
+          pipeline = [
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'teacher',
+                foreignField: '_id',
+                as: 'teacherData'
+              }
+            },
+            { $unwind: '$teacherData' },
+            {
+              $group: {
+                _id: '$teacherData.name',
+                avgProgress: { $avg: '$percentageComplete' },
+                totalSubjects: { $sum: 1 },
+                onTrackCount: { 
+                  $sum: { $cond: [{ $eq: ['$isOnTrack', true] }, 1, 0] } 
+                }
+              }
+            }
+          ];
+          break;
+      }
+      
+      const analysis = await Progress.aggregate(pipeline);
+      
+      // Add KPI achievement rate
+      const kpiData = await KPI.aggregate([
+        {
+          $lookup: {
+            from: 'subjects',
+            localField: 'subject',
+            foreignField: '_id',
+            as: 'subjectData'
+          }
+        },
+        { $unwind: '$subjectData' },
+        {
+          $group: {
+            _id: groupBy === 'department' ? '$subjectData.department' : 
+                 groupBy === 'class' ? '$subjectData.class' : '$subjectData.teacher',
+            totalKPIs: { $sum: 1 },
+            achievedKPIs: { 
+              $sum: { $cond: [{ $eq: ['$achieved', true] }, 1, 0] } 
+            }
+          }
+        }
+      ]);
+      
+      // Merge KPI data with progress data
+      const mergedAnalysis = analysis.map(item => {
+        const kpiInfo = kpiData.find(k => k._id === item._id) || { 
+          totalKPIs: 0, 
+          achievedKPIs: 0 
+        };
+        
+        return {
+          ...item,
+          kpiAchievementRate: kpiInfo.totalKPIs > 0 
+            ? (kpiInfo.achievedKPIs / kpiInfo.totalKPIs) * 100 
+            : 0,
+          performanceScore: (
+            item.avgProgress * 0.4 + 
+            (item.onTrackCount / item.totalSubjects) * 100 * 0.3 + 
+            (kpiInfo.totalKPIs > 0 ? (kpiInfo.achievedKPIs / kpiInfo.totalKPIs) * 100 * 0.3 : 0)
+          )
+        };
+      });
+      
+      res.json({
+        groupBy,
+        data: mergedAnalysis.sort((a, b) => b.performanceScore - a.performanceScore)
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+// backend/src/services/progressCalculation.service.ts
+import { Progress } from '../models/Progress';
+import ProgressHistory from '../models/ProgressHistory';
+import Subject from '../models/Subject';
+import Chapter from '../models/Chapter';
+import Topic from '../models/Topic';
+import KPI from '../models/KPI';
+
+export class ProgressCalculationService {
+  async calculateAndUpdateProgress(subjectId: string) {
+    const subject = await Subject.findById(subjectId)
       .populate({
         path: 'chapters',
         populate: { path: 'topics' }
       });
     
-    if (!subject) {
-      return res.status(404).json({ message: 'Subject not found' });
-    }
+    if (!subject) return null;
     
-    res.json(subject);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Update a subject
-exports.updateSubject = async (req, res) => {
-  try {
-    const subject = await Subject.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!subject) {
-      return res.status(404).json({ message: 'Subject not found' });
-    }
-    res.json(subject);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Delete a subject
-exports.deleteSubject = async (req, res) => {
-  try {
-    const subject = await Subject.findByIdAndDelete(req.params.id);
-    if (!subject) {
-      return res.status(404).json({ message: 'Subject not found' });
-    }
-    
-    // Remove from class
-    await Class.updateOne(
-      { _id: subject.class },
-      { $pull: { subjects: subject._id } }
-    );
-    
-    res.json({ message: 'Subject deleted' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-controllers/kpiController.js
-javascript
-const KPI = require('../models/KPI');
-const Subject = require('../models/Subject');
-
-// Create a new KPI
-exports.createKPI = async (req, res) => {
-  try {
-    const { subjectId, title, description, target, deadline } = req.body;
-    
-    // Check if subject exists
-    const subject = await Subject.findById(subjectId);
-    if (!subject) {
-      return res.status(400).json({ message: 'Subject not found' });
-    }
-    
-    const kpi = new KPI({
-      subject: subjectId,
-      title,
-      description,
-      target,
-      deadline
-    });
-    
-    await kpi.save();
-    res.status(201).json(kpi);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Update a KPI
-exports.updateKPI = async (req, res) => {
-  try {
-    const { current, achieved } = req.body;
-    const update = { ...req.body };
-    
-    if (achieved) {
-      update.achievedAt = new Date();
-    }
-    
-    const kpi = await KPI.findByIdAndUpdate(req.params.id, update, { new: true });
-    
-    if (!kpi) {
-      return res.status(404).json({ message: 'KPI not found' });
-    }
-    
-    res.json(kpi);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Get KPIs for a subject
-exports.getSubjectKPIs = async (req, res) => {
-  try {
-    const subjectId = req.params.subjectId;
-    const kpis = await KPI.find({ subject: subjectId });
-    res.json(kpis);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Delete a KPI
-exports.deleteKPI = async (req, res) => {
-  try {
-    await KPI.findByIdAndDelete(req.params.id);
-    res.json({ message: 'KPI deleted' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-controllers/progressController.js
-javascript
-const Progress = require('../models/Progress');
-const Subject = require('../models/Subject');
-const Topic = require('../models/Topic');
-
-// Calculate progress for a subject
-exports.calculateProgress = async (req, res) => {
-  try {
-    const subjectId = req.params.subjectId;
-    const subject = await Subject.findById(subjectId).populate({
-      path: 'chapters',
-      populate: { path: 'topics' }
-    });
-    
-    if (!subject) {
-      return res.status(404).json({ message: 'Subject not found' });
-    }
-    
-    // Calculate progress
     let totalTopics = 0;
     let completedTopics = 0;
+    let totalChapters = subject.chapters.length;
+    let completedChapters = 0;
     
-    for (const chapter of subject.chapters) {
-      for (const topic of chapter.topics) {
-        totalTopics++;
-        if (topic.completed) completedTopics++;
-      }
-    }
-    
-    const progressPercentage = totalTopics > 0 ? 
-      Math.round((completedTopics / totalTopics) * 100) : 0;
-    
-    // Save progress
-    const progress = new Progress({
-      subject: subjectId,
-      percentage: progressPercentage,
-      completedTopics,
-      totalTopics
-    });
-    
-    await progress.save();
-    
-    // Update subject progress
-    subject.progress = progressPercentage;
-    await subject.save();
-    
-    res.json(progress);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Get progress history for a subject
-exports.getProgressHistory = async (req, res) => {
-  try {
-    const subjectId = req.params.subjectId;
-    const history = await Progress.find({ subject: subjectId })
-      .sort({ date: -1 })
-      .limit(30);
-    
-    res.json(history);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-controllers/reportController.js
-javascript
-const ScheduledReport = require('../models/ScheduledReport');
-const reportGenerator = require('../services/reportGenerator');
-
-// Create a scheduled report
-exports.createScheduledReport = async (req, res) => {
-  try {
-    const { name, description, frequency, recipients } = req.body;
-    
-    // Calculate next run date
-    const nextRun = calculateNextRun(frequency);
-    
-    const report = new ScheduledReport({
-      name,
-      description,
-      frequency,
-      recipients,
-      nextRun
-    });
-    
-    await report.save();
-    res.status(201).json(report);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Run a report immediately
-exports.runReport = async (req, res) => {
-  try {
-    const reportId = req.params.id;
-    const report = await ScheduledReport.findById(reportId);
-    
-    if (!report) {
-      return res.status(404).json({ message: 'Report not found' });
-    }
-    
-    // Generate report
-    const reportData = await reportGenerator.generateReport(report);
-    
-    // Update last run
-    report.lastRun = new Date();
-    report.nextRun = calculateNextRun(report.frequency);
-    await report.save();
-    
-    res.json({
-      message: 'Report generated successfully',
-      data: reportData
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Get all scheduled reports
-exports.getScheduledReports = async (req, res) => {
-  try {
-    const reports = await ScheduledReport.find();
-    res.json(reports);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Helper function to calculate next run date
-function calculateNextRun(frequency) {
-  const nextRun = new Date();
-  
-  switch (frequency) {
-    case 'daily':
-      nextRun.setDate(nextRun.getDate() + 1);
-      break;
-    case 'weekly':
-      nextRun.setDate(nextRun.getDate() + 7);
-      break;
-    case 'monthly':
-      nextRun.setMonth(nextRun.getMonth() + 1);
-      break;
-  }
-  
-  return nextRun;
-}
-controllers/analyticsController.js
-javascript
-const Subject = require('../models/Subject');
-const KPI = require('../models/KPI');
-const Progress = require('../models/Progress');
-
-// Get progress trends for a subject
-exports.getProgressTrends = async (req, res) => {
-  try {
-    const { subjectId, days = 30 } = req.query;
-    const date = new Date();
-    date.setDate(date.getDate() - days);
-    
-    const progressData = await Progress.find({
-      subject: subjectId,
-      date: { $gte: date }
-    }).sort('date');
-    
-    res.json(progressData);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Get comparative analysis by department
-exports.getComparativeAnalysis = async (req, res) => {
-  try {
-    const subjects = await Subject.aggregate([
-      {
-        $group: {
-          _id: '$department',
-          avgProgress: { $avg: '$progress' },
-          subjectCount: { $sum: 1 }
-        }
-      }
-    ]);
-    
-    res.json(subjects);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Get KPI achievement rates
-exports.getKPIAchievement = async (req, res) => {
-  try {
-    const kpis = await KPI.aggregate([
-      {
-        $group: {
-          _id: '$subject',
-          total: { $sum: 1 },
-          achieved: { $sum: { $cond: ['$achieved', 1, 0] } }
-        }
-      },
-      {
-        $lookup: {
-          from: 'subjects',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'subject'
-        }
-      },
-      { $unwind: '$subject' },
-      {
-        $project: {
-          subject: '$subject.name',
-          achievementRate: { $divide: ['$achieved', '$total'] }
-        }
-      }
-    ]);
-    
-    res.json(kpis);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Get progress forecast
-exports.getProgressForecast = async (req, res) => {
-  try {
-    const { subjectId } = req.query;
-    const progressHistory = await Progress.find({ subject: subjectId })
-      .sort({ date: -1 })
-      .limit(30);
-    
-    if (progressHistory.length < 2) {
-      return res.json({ 
-        message: 'Insufficient data for forecasting',
-        predictions: [] 
-      });
-    }
-    
-    // Simple linear regression for forecasting
-    const predictions = [];
-    const xValues = progressHistory.map((_, i) => i);
-    const yValues = progressHistory.map(p => p.percentage);
-    
-    const n = xValues.length;
-    const sumX = xValues.reduce((a, b) => a + b, 0);
-    const sumY = yValues.reduce((a, b) => a + b, 0);
-    const sumXY = xValues.reduce((total, x, i) => total + x * yValues[i], 0);
-    const sumX2 = xValues.reduce((total, x) => total + x * x, 0);
-    
-    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
-    
-    // Generate predictions for next 14 days
-    for (let i = 0; i < 14; i++) {
-      const predictedProgress = Math.min(100, intercept + slope * (n + i));
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + i);
+    for (const chapter of subject.chapters as any[]) {
+      const chapterTopics = chapter.topics || [];
+      totalTopics += chapterTopics.length;
       
-      predictions.push({
-        date: futureDate,
-        predictedProgress: Math.max(0, predictedProgress),
-        confidence: Math.max(0.5, 1 - (i * 0.01))
-      });
+      const chapterCompletedTopics = chapterTopics.filter((t: any) => t.completed).length;
+      completedTopics += chapterCompletedTopics;
+      
+      if (chapterTopics.length > 0 && chapterCompletedTopics === chapterTopics.length) {
+        completedChapters++;
+      }
     }
     
-    // Calculate estimated completion date
-    const daysToComplete = (100 - yValues[0]) / slope;
-    const completionDate = new Date();
-    completionDate.setDate(completionDate.getDate() + Math.ceil(daysToComplete));
+    // Calculate KPI progress
+    const kpis = await KPI.find({ subject: subjectId });
+    const totalKpis = kpis.length;
+    const achievedKpis = kpis.filter(k => k.achieved).length;
     
-    res.json({
-      currentProgress: yValues[0],
-      dailyProgressRate: slope,
-      estimatedCompletionDate: completionDate,
-      predictions
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-controllers/exportController.js
-javascript
-const ExcelJS = require('exceljs');
-const { Parser } = require('json2csv');
-const Subject = require('../models/Subject');
-const KPI = require('../models/KPI');
-const Progress = require('../models/Progress');
-
-// Export subjects to Excel
-exports.exportSubjectsExcel = async (req, res) => {
-  try {
-    const subjects = await Subject.find().populate('class', 'name');
+    // Calculate percentage
+    const percentageComplete = totalTopics > 0 
+      ? (completedTopics / totalTopics) * 100 
+      : 0;
     
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Subjects');
-    
-    worksheet.columns = [
-      { header: 'Name', key: 'name', width: 30 },
-      { header: 'Code', key: 'code', width: 15 },
-      { header: 'Department', key: 'department', width: 20 },
-      { header: 'Class', key: 'className', width: 15 },
-      { header: 'Progress', key: 'progress', width: 10 },
-      { header: 'Deadline', key: 'deadline', width: 15 }
-    ];
-    
-    subjects.forEach(subject => {
-      worksheet.addRow({
-        name: subject.name,
-        code: subject.code,
-        department: subject.department,
-        className: subject.class.name,
-        progress: subject.progress,
-        deadline: subject.deadline
+    // Update progress record
+    const progress = await Progress.findOne({ subject: subjectId });
+    if (progress) {
+      progress.totalChapters = totalChapters;
+      progress.completedChapters = completedChapters;
+      progress.totalTopics = totalTopics;
+      progress.completedTopics = completedTopics;
+      progress.percentageComplete = percentageComplete;
+      progress.lastUpdated = new Date();
+      
+      // Check if on track (simple calculation based on time elapsed vs progress)
+      const totalDays = Math.ceil((new Date(subject.deadline).getTime() - new Date(subject.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      const daysElapsed = Math.ceil((new Date().getTime() - new Date(subject.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      const expectedProgress = (daysElapsed / totalDays) * 100;
+      progress.isOnTrack = percentageComplete >= (expectedProgress - 10); // 10% buffer
+      
+      await progress.save();
+      
+      // Save to history
+      await this.saveProgressHistory({
+        subject: subjectId,
+        date: new Date(),
+        percentageComplete,
+        topicsCompleted: completedTopics,
+        totalTopics,
+        chaptersCompleted: completedChapters,
+        totalChapters,
+        kpisAchieved: achievedKpis,
+        totalKpis,
+        predictedCompletionDate: this.predictCompletionDate(subject, percentageComplete)
       });
+      
+      return progress;
+    }
+    
+    return null;
+  }
+  
+  private predictCompletionDate(subject: any, currentProgress: number): Date | null {
+    if (currentProgress >= 100) return new Date();
+    
+    // Calculate days since start
+    const daysSinceStart = Math.ceil(
+      (new Date().getTime() - new Date(subject.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    
+    if (daysSinceStart === 0 || currentProgress === 0) return subject.deadline;
+    
+    // Calculate daily progress rate
+    const dailyProgressRate = currentProgress / daysSinceStart;
+    
+    // Calculate remaining progress needed
+    const remainingProgress = 100 - currentProgress;
+    
+    // Calculate days needed to complete
+    const daysToComplete = Math.ceil(remainingProgress / dailyProgressRate);
+    
+    // Calculate predicted completion date
+    const predictedDate = new Date();
+    predictedDate.setDate(predictedDate.getDate() + daysToComplete);
+    
+    return predictedDate;
+  }
+  
+  private async saveProgressHistory(data: any) {
+    // Check if we already have an entry for today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const existingEntry = await ProgressHistory.findOne({
+      subject: data.subject,
+      date: {
+        $gte: today,
+        $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+      }
     });
     
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename=subjects.xlsx');
-    
-    await workbook.xlsx.write(res);
-    res.end();
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Export progress data to CSV
-exports.exportProgressCSV = async (req, res) => {
-  try {
-    const progressData = await Progress.find().populate('subject', 'name');
-    
-    const fields = ['date', 'subject.name', 'percentage', 'completedTopics', 'totalTopics'];
-    const opts = { fields };
-    
-    const parser = new Parser(opts);
-    const csv = parser.parse(progressData);
-    
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=progress.csv');
-    res.send(csv);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Export all data to JSON
-exports.exportAllJSON = async (req, res) => {
-  try {
-    const subjects = await Subject.find().populate('class', 'name');
-    const kpis = await KPI.find().populate('subject', 'name');
-    const progress = await Progress.find().populate('subject', 'name');
-    
-    const data = {
-      subjects,
-      kpis,
-      progress
-    };
-    
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', 'attachment; filename=export.json');
-    res.send(JSON.stringify(data));
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-5. Routes
-routes/subjectRoutes.js
-javascript
-const express = require('express');
-const router = express.Router();
-const subjectController = require('../controllers/subjectController');
-
-router.post('/', subjectController.createSubject);
-router.get('/', subjectController.getSubjects);
-router.get('/:id', subjectController.getSubject);
-router.put('/:id', subjectController.updateSubject);
-router.delete('/:id', subjectController.deleteSubject);
-
-module.exports = router;
-routes/kpiRoutes.js
-javascript
-const express = require('express');
-const router = express.Router();
-const kpiController = require('../controllers/kpiController');
-
-router.post('/', kpiController.createKPI);
-router.put('/:id', kpiController.updateKPI);
-router.get('/subject/:subjectId', kpiController.getSubjectKPIs);
-router.delete('/:id', kpiController.deleteKPI);
-
-module.exports = router;
-routes/progressRoutes.js
-javascript
-const express = require('express');
-const router = express.Router();
-const progressController = require('../controllers/progressController');
-
-router.post('/calculate/:subjectId', progressController.calculateProgress);
-router.get('/history/:subjectId', progressController.getProgressHistory);
-
-module.exports = router;
-routes/reportRoutes.js
-javascript
-const express = require('express');
-const router = express.Router();
-const reportController = require('../controllers/reportController');
-
-router.post('/', reportController.createScheduledReport);
-router.post('/run/:id', reportController.runReport);
-router.get('/', reportController.getScheduledReports);
-
-module.exports = router;
-routes/analyticsRoutes.js
-javascript
-const express = require('express');
-const router = express.Router();
-const analyticsController = require('../controllers/analyticsController');
-
-router.get('/trends', analyticsController.getProgressTrends);
-router.get('/comparative', analyticsController.getComparativeAnalysis);
-router.get('/kpi-achievement', analyticsController.getKPIAchievement);
-router.get('/forecast', analyticsController.getProgressForecast);
-
-module.exports = router;
-routes/exportRoutes.js
-javascript
-const express = require('express');
-const router = express.Router();
-const exportController = require('../controllers/exportController');
-
-router.get('/subjects/excel', exportController.exportSubjectsExcel);
-router.get('/progress/csv', exportController.exportProgressCSV);
-router.get('/all/json', exportController.exportAllJSON);
-
-module.exports = router;
-6. Services
-services/reportGenerator.js
-javascript
-const Subject = require('../models/Subject');
-const KPI = require('../models/KPI');
-const Progress = require('../models/Progress');
-
-// Generate a comprehensive report
-exports.generateReport = async (report) => {
-  try {
-    // Get all data needed for the report
-    const subjects = await Subject.find().populate('class', 'name');
-    const kpis = await KPI.find().populate('subject', 'name');
-    const progress = await Progress.find().populate('subject', 'name');
-    
-    // Format the report data
-    const reportData = {
-      generatedAt: new Date(),
-      reportName: report.name,
-      subjects: subjects.map(subject => ({
-        name: subject.name,
-        class: subject.class.name,
-        department: subject.department,
-        progress: subject.progress,
-        deadline: subject.deadline
-      })),
-      kpis: kpis.map(kpi => ({
-        title: kpi.title,
-        subject: kpi.subject.name,
-        target: kpi.target,
-        current: kpi.current,
-        achieved: kpi.achieved,
-        deadline: kpi.deadline
-      })),
-      progressHistory: progress.map(p => ({
-        date: p.date,
-        subject: p.subject.name,
-        percentage: p.percentage,
-        completedTopics: p.completedTopics,
-        totalTopics: p.totalTopics
-      }))
-    };
-    
-    return reportData;
-  } catch (err) {
-    throw new Error('Failed to generate report: ' + err.message);
-  }
-};
-7. Package.json Scripts
-json
-{
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    if (existingEntry) {
+      // Update existing entry
+      Object.assign(existingEntry, data);
+      await existingEntry.save();
+    } else {
+      // Create new entry
+      await ProgressHistory.create(data);
+    }
   }
 }
-This backend implementation provides a complete RESTful API for the Syllabus Tracker Pro application, with:
 
-Subject Management:
+// backend/src/services/reportScheduler.service.ts
+import cron from 'node-cron';
+import ScheduledReport from '../models/ScheduledReport';
+import { pdfService } from './pdf.service';
+import { ExportController } from '../controllers/export.controller';
+import nodemailer from 'nodemailer';
 
-Create, read, update, and delete subjects
+export class ReportSchedulerService {
+  private jobs: Map<string, cron.ScheduledTask> = new Map();
+  private exportController = new ExportController();
+  
+  async initializeScheduledReports() {
+    const activeReports = await ScheduledReport.find({ isActive: true });
+    
+    for (const report of activeReports) {
+      this.scheduleReport(report);
+    }
+  }
+  
+  scheduleReport(report: any) {
+    // Convert schedule to cron expression
+    const cronExpression = this.buildCronExpression(report.schedule);
+    
+    if (this.jobs.has(report._id.toString())) {
+      this.jobs.get(report._id.toString())?.stop();
+    }
+    
+    const job = cron.schedule(cronExpression, async () => {
+      await this.executeReport(report);
+    });
+    
+    this.jobs.set(report._id.toString(), job);
+  }
+  
+  private buildCronExpression(schedule: any): string {
+    const [hours, minutes] = schedule.time.split(':');
+    
+    switch (schedule.frequency) {
+      case 'daily':
+        return `${minutes} ${hours} * * *`;
+      case 'weekly':
+        return `${minutes} ${hours} * * ${schedule.dayOfWeek}`;
+      case 'monthly':
+        return `${minutes} ${hours} ${schedule.dayOfMonth} * *`;
+      default:
+        return '0 0 * * *'; // Default to daily at midnight
+    }
+  }
+  
+  private async executeReport(report: any) {
+    try {
+      // Generate report based on type
+      let reportBuffer: Buffer;
+      
+      switch (report.reportType) {
+        case 'weekly':
+          reportBuffer = await pdfService.generateWeeklyReport();
+          break;
+        case 'monthly':
+          reportBuffer = await pdfService.generateMonthlyReport();
+          break;
+        case 'custom':
+          // TODO: Implement custom report generation
+          reportBuffer = Buffer.from('Custom report not implemented');
+          break;
+        default:
+          throw new Error('Unknown report type');
+      }
+      
+      // Send report to recipients
+      await this.sendReport(report, reportBuffer);
+      
+      // Update last run and next run
+      report.lastRun = new Date();
+      report.nextRun = this.calculateNextRun(report.schedule);
+      await report.save();
+    } catch (error) {
+      console.error('Error executing scheduled report:', error);
+    }
+  }
+  
+  private async sendReport(report: any, buffer: Buffer) {
+    // Configure email transporter (you'll need to set up SMTP settings)
+    const transporter = nodemailer.createTransport({
+      // Add your SMTP configuration here
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+    
+    const mailOptions = {
+      from: process.env.SMTP_FROM || 'noreply@syllabusracker.com',
+      to: report.recipients.join(', '),
+      subject: `Scheduled Report: ${report.name}`,
+      text: `Please find attached your scheduled report: ${report.name}`,
+      attachments: [{
+        filename: `${report.name.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.${report.format}`,
+        content: buffer
+      }]
+    };
+    
+    await transporter.sendMail(mailOptions);
+  }
+  
+  private calculateNextRun(schedule: any): Date {
+    const now = new Date();
+    const next = new Date();
+    const [hours, minutes] = schedule.time.split(':').map(Number);
+    
+    switch (schedule.frequency) {
+      case 'daily':
+        next.setDate(now.getDate() + 1);
+        break;
+      case 'weekly':
+        next.setDate(now.getDate() + 7);
+        break;
+      case 'monthly':
+        next.setMonth(now.getMonth() + 1);
+        next.setDate(schedule.dayOfMonth);
+        break;
+    }
+    
+    next.setHours(hours, minutes, 0, 0);
+    return next;
+  }
+  
+  stopReport(reportId: string) {
+    const job = this.jobs.get(reportId);
+    if (job) {
+      job.stop();
+      this.jobs.delete(reportId);
+    }
+  }
+}
 
-Associate subjects with classes
+// backend/src/routes/kpi.routes.ts
+import { Router } from 'express';
+import { KPIController } from '../controllers/kpi.controller';
 
-KPI Management:
+const router = Router();
+const kpiController = new KPIController();
 
-Create and manage Key Performance Indicators
+router.get('/', kpiController.getKPIs.bind(kpiController));
+router.post('/', kpiController.createKPI.bind(kpiController));
+router.patch('/:id', kpiController.updateKPI.bind(kpiController));
+router.delete('/:id', kpiController.deleteKPI.bind(kpiController));
+router.get('/analytics', kpiController.getKPIAnalytics.bind(kpiController));
 
-Track KPI achievement
+export default router;
 
-Progress Tracking:
+// backend/src/routes/analytics.routes.ts
+import { Router } from 'express';
+import { AnalyticsController } from '../controllers/analytics.controller';
 
-Calculate subject progress based on topic completion
+const router = Router();
+const analyticsController = new AnalyticsController();
 
-Store progress history
+router.get('/trends', analyticsController.getTrendAnalysis.bind(analyticsController));
+router.get('/forecast', analyticsController.getForecast.bind(analyticsController));
+router.get('/comparative', analyticsController.getComparativeAnalysis.bind(analyticsController));
 
-Report Generation:
+export default router;
 
-Schedule automated reports
+// backend/src/routes/export.routes.ts
+import { Router } from 'express';
+import { ExportController } from '../controllers/export.controller';
 
-Generate reports on demand
+const router = Router();
+const exportController = new ExportController();
 
-Analytics:
+router.post('/excel', exportController.exportToExcel.bind(exportController));
+router.get('/csv', exportController.exportToCSV.bind(exportController));
+router.get('/json', exportController.exportToJSON.bind(exportController));
 
-Progress trends and forecasting
+export default router;
 
-Comparative analysis by department
+// Add these to backend/package.json dependencies:
+// "exceljs": "^4.3.0",
+// "json2csv": "^6.0.0",
+// "node-cron": "^3.0.2",
+// "nodemailer": "^6.9.4",
+// "@types/node-cron": "^3.0.8",
+// "@types/nodemailer": "^6.4.9"
 
-KPI achievement rates
 
-Data Export:
 
-Export to Excel, CSV, and JSON formats
 
-Subject-specific exports
+// backend/src/app.ts - Updated with all advanced features
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import dotenv from 'dotenv';
+import { connectDB } from './config/database';
+import { ReportSchedulerService } from './services/reportScheduler.service';
+import { ProgressCalculationService } from './services/progressCalculation.service';
 
-Full dataset exports
+// Import routes
+import authRoutes from './routes/auth.routes';
+import syllabusRoutes from './routes/syllabus.routes';
+import adminRoutes from './routes/admin.routes';
+import classRoutes from './routes/class.routes';
+import reportRoutes from './routes/report.routes';
+import taskRoutes from './routes/task.routes';
+import pdfRoutes from './routes/pdf.routes';
+import kpiRoutes from './routes/kpi.routes';
+import analyticsRoutes from './routes/analytics.routes';
+import exportRoutes from './routes/export.routes';
+import milestoneRoutes from './routes/milestone.routes';
+import scheduledReportRoutes from './routes/scheduledReport.routes';
 
-The API follows RESTful principles and uses MongoDB for data persistence. You can start the server with npm run dev for development or npm start for production. The frontend can connect to this backend using the provided API endpoints.
+import errorMiddleware from './middleware/error.middleware';
+import { progressCalculationMiddleware } from './middleware/progressCalculation.middleware';
+
+dotenv.config();
+
+const app = express();
+
+// Initialize services
+const reportScheduler = new ReportSchedulerService();
+const progressCalculator = new ProgressCalculationService();
+
+// Middleware
+app.use(express.json());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true
+}));
+app.use(helmet());
+
+// Connect to DB with error handling
+connectDB()
+  .then(async () => {
+    console.log('Database connected successfully');
+    // Initialize scheduled reports after DB connection
+    await reportScheduler.initializeScheduledReports();
+    console.log('Scheduled reports initialized');
+  })
+  .catch((error) => {
+    console.error('Failed to connect to database:', error);
+    process.exit(1);
+  });
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/syllabus', syllabusRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/classes', classRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/pdf', pdfRoutes);
+app.use('/api/kpis', kpiRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/export', exportRoutes);
+app.use('/api/milestones', milestoneRoutes);
+app.use('/api/scheduled-reports', scheduledReportRoutes);
+
+// Health check endpoint with more details
+app.get('/health', async (req, res) => {
+  try {
+    // Check database connection
+    const mongoose = require('mongoose');
+    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      database: dbStatus,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      version: process.env.npm_package_version || '1.0.0'
+    });
+  } catch (error) {
+    res.status(503).json({ 
+      status: 'error', 
+      message: 'Service unavailable',
+      timestamp: new Date().toISOString() 
+    });
+  }
+});
+
+// Progress calculation middleware - runs after syllabus updates
+app.use(progressCalculationMiddleware);
+
+// Error handling middleware
+app.use(errorMiddleware);
+
+const PORT = process.env.PORT || 5000;
+
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    mongoose.connection.close(false, () => {
+      console.log('MongoDB connection closed');
+      process.exit(0);
+    });
+  });
+});
+
+export default app;
+
+// backend/src/middleware/progressCalculation.middleware.ts
+import { Request, Response, NextFunction } from 'express';
+import { ProgressCalculationService } from '../services/progressCalculation.service';
+
+const progressService = new ProgressCalculationService();
+
+export const progressCalculationMiddleware = async (
+  req: Request, 
+  res: Response, 
+  next: NextFunction
+) => {
+  // Only run for specific routes that modify syllabus data
+  const triggerPaths = [
+    '/api/syllabus/topics',
+    '/api/syllabus/chapters',
+    '/api/kpis'
+  ];
+  
+  const shouldCalculate = triggerPaths.some(path => 
+    req.path.includes(path) && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)
+  );
+  
+  if (!shouldCalculate) {
+    return next();
+  }
+  
+  // Store original send function
+  const originalSend = res.send;
+  
+  // Override send function
+  res.send = function(data: any): Response {
+    // After successful response, calculate progress asynchronously
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      // Extract subject ID from request or response
+      const subjectId = extractSubjectId(req, data);
+      
+      if (subjectId) {
+        // Don't wait for this to complete
+        progressService.calculateAndUpdateProgress(subjectId)
+          .catch(err => console.error('Error calculating progress:', err));
+      }
+    }
+    
+    // Call original send
+    return originalSend.call(this, data);
+  };
+  
+  next();
+};
+
+function extractSubjectId(req: Request, responseData: any): string | null {
+  // Try to get subject ID from various sources
+  if (req.body?.subject) return req.body.subject;
+  if (req.params?.subjectId) return req.params.subjectId;
+  
+  // Parse response data if it's a string
+  try {
+    const data = typeof responseData === 'string' ? JSON.parse(responseData) : responseData;
+    if (data?.subject?._id) return data.subject._id;
+    if (data?.subject) return data.subject;
+  } catch (e) {
+    // Ignore parsing errors
+  }
+  
+  return null;
+}
+
+// backend/src/routes/milestone.routes.ts
+import { Router } from 'express';
+import { MilestoneController } from '../controllers/milestone.controller';
+
+const router = Router();
+const milestoneController = new MilestoneController();
+
+router.get('/', milestoneController.getMilestones.bind(milestoneController));
+router.post('/', milestoneController.createMilestone.bind(milestoneController));
+router.patch('/:id', milestoneController.updateMilestone.bind(milestoneController));
+router.delete('/:id', milestoneController.deleteMilestone.bind(milestoneController));
+router.post('/:id/check', milestoneController.checkMilestoneAchievement.bind(milestoneController));
+router.get('/achievements/:userId', milestoneController.getUserAchievements.bind(milestoneController));
+
+export default router;
+
+// backend/src/controllers/milestone.controller.ts
+import { Request, Response, NextFunction } from 'express';
+import Milestone from '../models/Milestone';
+import { Progress } from '../models/Progress';
+import KPI from '../models/KPI';
+
+export class MilestoneController {
+  async getMilestones(req: Request, res: Response, next: NextFunction) {
+    try {
+      const milestones = await Milestone.find({ isActive: true })
+        .populate('achievedBy', 'name email')
+        .sort({ target: 1 });
+      
+      res.json(milestones);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async createMilestone(req: Request, res: Response, next: NextFunction) {
+    try {
+      const milestone = new Milestone(req.body);
+      await milestone.save();
+      res.status(201).json(milestone);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateMilestone(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const milestone = await Milestone.findByIdAndUpdate(id, req.body, { new: true });
+      
+      if (!milestone) {
+        return res.status(404).json({ message: 'Milestone not found' });
+      }
+      
+      res.json(milestone);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteMilestone(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      await Milestone.findByIdAndDelete(id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async checkMilestoneAchievement(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { userId } = req.body;
+      
+      const milestone = await Milestone.findById(id);
+      if (!milestone) {
+        return res.status(404).json({ message: 'Milestone not found' });
+      }
+      
+      // Check if user has already achieved this milestone
+      if (milestone.achievedBy.includes(userId)) {
+        return res.json({ achieved: true, message: 'Already achieved' });
+      }
+      
+      // Check conditions based on milestone type
+      let achieved = false;
+      
+      switch (milestone.type) {
+        case 'progress':
+          const progress = await Progress.find({ teacher: userId });
+          const avgProgress = progress.reduce((sum, p) => sum + p.percentageComplete, 0) / progress.length;
+          achieved = this.checkConditions(milestone.conditions, { progress: avgProgress });
+          break;
+          
+        case 'kpi':
+          const kpis = await KPI.find({ /* filter by user's subjects */ });
+          const achievedKPIs = kpis.filter(k => k.achieved).length;
+          const kpiRate = (achievedKPIs / kpis.length) * 100;
+          achieved = this.checkConditions(milestone.conditions, { kpiRate });
+          break;
+          
+        case 'completion':
+          // Check subject/chapter/topic completion
+          // Implementation depends on your specific requirements
+          break;
+      }
+      
+      if (achieved) {
+        milestone.achievedBy.push(userId);
+        await milestone.save();
+        
+        // You might want to trigger notifications or rewards here
+        res.json({ 
+          achieved: true, 
+          message: 'Congratulations! Milestone achieved!',
+          reward: milestone.reward 
+        });
+      } else {
+        res.json({ achieved: false, message: 'Keep going!' });
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getUserAchievements(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { userId } = req.params;
+      
+      const achievements = await Milestone.find({
+        achievedBy: userId
+      }).select('-achievedBy');
+      
+      res.json(achievements);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  private checkConditions(conditions: any[], data: any): boolean {
+    return conditions.every(condition => {
+      const value = data[condition.metric];
+      
+      switch (condition.operator) {
+        case 'equals':
+          return value === condition.value;
+        case 'greater':
+          return value > condition.value;
+        case 'less':
+          return value < condition.value;
+        case 'between':
+          return value >= condition.value && value <= condition.value2;
+        default:
+          return false;
+      }
+    });
+  }
+}
+
+// backend/src/routes/scheduledReport.routes.ts
+import { Router } from 'express';
+import { ScheduledReportController } from '../controllers/scheduledReport.controller';
+
+const router = Router();
+const controller = new ScheduledReportController();
+
+router.get('/', controller.getScheduledReports.bind(controller));
+router.post('/', controller.createScheduledReport.bind(controller));
+router.patch('/:id', controller.updateScheduledReport.bind(controller));
+router.delete('/:id', controller.deleteScheduledReport.bind(controller));
+router.post('/:id/run', controller.runReportNow.bind(controller));
+
+export default router;
+
+// backend/src/controllers/scheduledReport.controller.ts
+import { Request, Response, NextFunction } from 'express';
+import ScheduledReport from '../models/ScheduledReport';
+import { ReportSchedulerService } from '../services/reportScheduler.service';
+
+export class ScheduledReportController {
+  private schedulerService = new ReportSchedulerService();
+
+  async getScheduledReports(req: Request, res: Response, next: NextFunction) {
+    try {
+      const reports = await ScheduledReport.find()
+        .populate('createdBy', 'name email')
+        .sort({ nextRun: 1 });
+      
+      res.json(reports);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async createScheduledReport(req: Request, res: Response, next: NextFunction) {
+    try {
+      const reportData = {
+        ...req.body,
+        createdBy: req.user?.id || req.body.createdBy,
+        nextRun: this.calculateNextRun(req.body.schedule)
+      };
+      
+      const report = new ScheduledReport(reportData);
+      await report.save();
+      
+      // Schedule the report if active
+      if (report.isActive) {
+        this.schedulerService.scheduleReport(report);
+      }
+      
+      res.status(201).json(report);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateScheduledReport(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      
+      const report = await ScheduledReport.findByIdAndUpdate(id, req.body, { new: true });
+      if (!report) {
+        return res.status(404).json({ message: 'Scheduled report not found' });
+      }
+      
+      // Update scheduler
+      if (report.isActive) {
+        this.schedulerService.scheduleReport(report);
+      } else {
+        this.schedulerService.stopReport(id);
+      }
+      
+      res.json(report);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteScheduledReport(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      
+      // Stop the scheduled job
+      this.schedulerService.stopReport(id);
+      
+      await ScheduledReport.findByIdAndDelete(id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async runReportNow(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      
+      const report = await ScheduledReport.findById(id);
+      if (!report) {
+        return res.status(404).json({ message: 'Scheduled report not found' });
+      }
+      
+      // Execute report immediately
+      // This would trigger the report generation and sending
+      res.json({ message: 'Report execution started', reportId: id });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  private calculateNextRun(schedule: any): Date {
+    const now = new Date();
+    const [hours, minutes] = schedule.time.split(':').map(Number);
+    const next = new Date();
+    
+    next.setHours(hours, minutes, 0, 0);
+    
+    // If time has already passed today, move to next occurrence
+    if (next <= now) {
+      switch (schedule.frequency) {
+        case 'daily':
+          next.setDate(next.getDate() + 1);
+          break;
+        case 'weekly':
+          next.setDate(next.getDate() + 7);
+          break;
+        case 'monthly':
+          next.setMonth(next.getMonth() + 1);
+          break;
+      }
+    }
+    
+    return next;
+  }
+}
+
+// backend/package.json - Updated dependencies
+{
+  "name": "syllabus-tracker-backend",
+  "version": "2.0.0",
+  "description": "Backend for Advanced Syllabus Tracking Application",
+  "main": "dist/app.js",
+  "scripts": {
+    "start": "node dist/app.js",
+    "dev": "nodemon src/app.ts",
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^1.40.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^6.8.1",
+    "fs-extra": "^11.1.1",
+    "helmet": "^7.0.0",
+    "joi": "^17.9.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.5.0",
+    "multer": "^2.0.0-rc.3",
+    "pdf-lib": "^1.17.1",
+    "exceljs": "^4.3.0",
+    "json2csv": "^6.0.0",
+    "node-cron": "^3.0.2",
+    "nodemailer": "^6.9.4",
+    "winston": "^3.10.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.2",
+    "@types/cors": "^2.8.13",
+    "@types/express": "^4.17.17",
+    "@types/fs-extra": "^11.0.4",
+    "@types/jest": "^29.5.3",
+    "@types/jsonwebtoken": "^9.0.2",
+    "@types/multer": "^1.4.7",
+    "@types/node": "^20.5.0",
+    "@types/node-cron": "^3.0.8",
+    "@types/nodemailer": "^6.4.9",
+    "@typescript-eslint/eslint-plugin": "^6.4.0",
+    "@typescript-eslint/parser": "^6.4.0",
+    "eslint": "^8.47.0",
+    "jest": "^29.6.2",
+    "nodemon": "^3.0.1",
+    "prettier": "^3.0.2",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.6"
+  }
+}
+
+// backend/src/config/logger.ts - Add logging
+import winston from 'winston';
+
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.splat(),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'syllabus-tracker' },
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.simple()
+    )
+  }));
+}
+
+export default logger;

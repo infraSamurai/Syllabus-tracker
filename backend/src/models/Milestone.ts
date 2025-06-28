@@ -1,57 +1,43 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IMilestone extends Document {
-  name: string;
+  title: string;
   description: string;
-  type: 'progress' | 'completion' | 'kpi' | 'custom';
-  target: number;
-  reward: {
-    type: 'badge' | 'certificate' | 'points' | 'custom';
-    value: string;
-    points?: number;
-  };
-  conditions: {
-    metric: string;
-    operator: 'equals' | 'greater' | 'less' | 'between';
+  criteria: {
+    type: 'topics_completed' | 'subjects_completed' | 'streak_days' | 'kpis_achieved';
     value: number;
-    value2?: number;
-  }[];
-  achievedBy: Types.ObjectId[];
-  isActive: boolean;
+  };
+  reward: {
+    type: 'badge' | 'certificate' | 'points';
+    value: string | number;
+    imageUrl?: string;
+  };
+  unlockedBy: Types.ObjectId[];  // Array of user IDs who unlocked this
   createdAt: Date;
   updatedAt: Date;
 }
 
 const MilestoneSchema = new Schema<IMilestone>({
-  name: { type: String, required: true },
+  title: { type: String, required: true },
   description: { type: String, required: true },
-  type: { 
-    type: String, 
-    enum: ['progress', 'completion', 'kpi', 'custom'], 
-    required: true 
+  criteria: {
+    type: { 
+      type: String, 
+      enum: ['topics_completed', 'subjects_completed', 'streak_days', 'kpis_achieved'],
+      required: true 
+    },
+    value: { type: Number, required: true }
   },
-  target: { type: Number, required: true },
   reward: {
     type: { 
       type: String, 
-      enum: ['badge', 'certificate', 'points', 'custom'], 
+      enum: ['badge', 'certificate', 'points'],
       required: true 
     },
-    value: { type: String, required: true },
-    points: { type: Number }
+    value: { type: Schema.Types.Mixed, required: true },
+    imageUrl: { type: String }
   },
-  conditions: [{
-    metric: { type: String, required: true },
-    operator: { 
-      type: String, 
-      enum: ['equals', 'greater', 'less', 'between'], 
-      required: true 
-    },
-    value: { type: Number, required: true },
-    value2: { type: Number }
-  }],
-  achievedBy: [{ type: Schema.Types.ObjectId, ref: 'User' }],
-  isActive: { type: Boolean, default: true }
+  unlockedBy: [{ type: Schema.Types.ObjectId, ref: 'User' }]
 }, { timestamps: true });
 
 export default model<IMilestone>('Milestone', MilestoneSchema); 

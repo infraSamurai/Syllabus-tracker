@@ -9,47 +9,6 @@
 // API Configuration
 const API_BASE = '/api';
 
-// Add missing functions that are referenced but not defined
-window.filterClasses = function(searchTerm) {
-    const classList = document.getElementById('class-list');
-    if (!classList) return;
-    
-    const searchInput = document.getElementById('class-search-input');
-    if (searchInput) {
-        searchInput.value = searchTerm;
-    }
-    
-    renderClasses(); // This will use the search term from the input
-};
-
-window.filterSubjects = function(searchTerm) {
-    const subjectList = document.getElementById('subject-list');
-    if (!subjectList) return;
-    
-    const searchInput = document.getElementById('subject-search-input');
-    if (searchInput) {
-        searchInput.value = searchTerm;
-    }
-    
-    renderSubjects(); // This will use the search term from the input
-};
-
-window.exportData = function(type, format) {
-    exportReport(type, format);
-};
-
-window.updateKPI = function(kpiId, newValue) {
-    // Implementation for updating KPI values
-    console.log('Updating KPI:', kpiId, 'to:', newValue);
-    // This would typically make an API call to update the KPI
-};
-
-window.initializeReportBuilder = function() {
-    // Implementation for initializing the report builder
-    console.log('Initializing report builder');
-    // This would set up drag and drop functionality for report widgets
-};
-
 // State Management
 const state = {
     subjects: [],
@@ -76,15 +35,13 @@ async function initializeApp() {
         showLoadingState();
         
         // Load all data
-        const [subjectsRes, classesRes, kpisRes] = await Promise.all([
-            fetch(`${API_BASE}/syllabus/subjects`),
-            fetch(`${API_BASE}/classes`),
-            fetch(`${API_BASE}/kpis`)
+        await Promise.all([
+            loadClasses(),
+            loadSubjects(),
+            loadKPIs(),
+            loadTasks(),
+            loadProgressHistory()
         ]);
-        if (!subjectsRes.ok || !classesRes.ok) throw new Error('Network response was not ok.');
-        state.subjects = await subjectsRes.json();
-        state.classes = await classesRes.json();
-        state.kpis = kpisRes.ok ? await kpisRes.json() : [];
         
         // Initialize components
         initializeSidebar();
@@ -99,38 +56,10 @@ async function initializeApp() {
 }
 
 function setupEventListeners() {
-    const subjectForm = document.getElementById('subjectForm');
-    if (subjectForm) subjectForm.addEventListener('submit', saveSubject);
-    
-    const chapterForm = document.getElementById('chapterForm');
-    if (chapterForm) chapterForm.addEventListener('submit', saveChapter);
-    
-    const topicForm = document.getElementById('topicForm');
-    if (topicForm) topicForm.addEventListener('submit', saveTopic);
-    
-    const classForm = document.getElementById('classForm');
-    if (classForm) classForm.addEventListener('submit', saveClass);
-    
-    // Class search functionality
-    const classSearchInput = document.getElementById('class-search-input');
-    if (classSearchInput) {
-        classSearchInput.addEventListener('input', debounce(() => {
-            renderClasses();
-        }, 300));
-    }
-    
-    // Class filter functionality
-    const filterButtons = document.querySelectorAll('.filter-btn');
-    filterButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            // Remove active class from all buttons
-            filterButtons.forEach(b => b.classList.remove('active'));
-            // Add active class to clicked button
-            btn.classList.add('active');
-            // Re-render classes with new filter
-            renderClasses();
-        });
-    });
+    document.getElementById('subjectForm').addEventListener('submit', saveSubject);
+    document.getElementById('chapterForm').addEventListener('submit', saveChapter);
+    document.getElementById('topicForm').addEventListener('submit', saveTopic);
+    document.getElementById('classForm').addEventListener('submit', saveClass);
 }
 
 function renderAll() {
@@ -242,9 +171,6 @@ function renderClasses() {
     
     classList.innerHTML = '';
     
-    // Update stats
-    updateClassStats();
-    
     if (state.classes.length === 0) {
         classList.innerHTML = `
             <div class="empty-state">
@@ -257,37 +183,21 @@ function renderClasses() {
 
     const classSearchInput = document.getElementById('class-search-input');
     const searchTerm = classSearchInput ? classSearchInput.value.toLowerCase() : '';
-    const activeFilter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
 
-    let filteredClasses = state.classes.filter(cls => {
-        const matchesSearch = cls.name.toLowerCase().includes(searchTerm);
-        const subjectCount = state.subjects.filter(s => s.class && s.class._id === cls._id).length;
-        
-        if (activeFilter === 'with-subjects') {
-            return matchesSearch && subjectCount > 0;
-        } else if (activeFilter === 'empty') {
-            return matchesSearch && subjectCount === 0;
-        }
-        return matchesSearch;
-    });
+    const filteredClasses = state.classes.filter(cls => cls.name.toLowerCase().includes(searchTerm));
 
     if (filteredClasses.length === 0) {
         classList.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">🧐</div>
-                <h3>No classes match your criteria</h3>
-                <p>Try adjusting your search or filter settings.</p>
+                <h3>No classes match your search</h3>
+                <p>Try a different search term or add a new class.</p>
             </div>`;
         return;
     }
 
     filteredClasses.forEach(cls => {
         const subjectCount = state.subjects.filter(s => s.class && s.class._id === cls._id).length;
-        const subjects = state.subjects.filter(s => s.class && s.class._id === cls._id);
-        
-        // Get subject names for display
-        const subjectNames = subjects.slice(0, 3).map(s => s.name).join(', ');
-        const remainingSubjects = subjects.length > 3 ? subjects.length - 3 : 0;
 
         const card = document.createElement('div');
         card.className = 'class-card';
@@ -298,50 +208,27 @@ function renderClasses() {
             </div>
             <div class="class-card-body">
                 <p>${cls.description || 'No description provided.'}</p>
-                ${subjects.length > 0 ? `
-                    <div class="class-subjects-preview">
-                        <strong>Subjects:</strong> ${subjectNames}${remainingSubjects > 0 ? ` +${remainingSubjects} more` : ''}
-                    </div>
-                ` : '<div class="class-subjects-preview"><em>No subjects assigned</em></div>'}
             </div>
             <div class="class-card-stats">
                 <div class="stat">
                     <span class="stat-value">${subjectCount}</span>
                     <span class="stat-label">Subjects</span>
                 </div>
-                <div class="stat">
-                    <span class="stat-value">${cls.section || 'N/A'}</span>
-                    <span class="stat-label">Section</span>
-                </div>
             </div>
             <div class="class-card-actions">
                 <button class="btn btn-secondary btn-small" onclick="openClassModal('${cls._id}')">
                     <span class="icon">✏️</span> Edit
                 </button>
-                <button class="btn btn-primary btn-small" onclick="openAddSubjectModal('${cls._id}')">
-                    <span class="icon">➕</span> Add Subject
-                </button>
                 <button class="btn btn-danger btn-small" onclick="deleteClass('${cls._id}')">
                     <span class="icon">🗑️</span> Delete
+                </button>
+                <button class="btn btn-primary btn-small" onclick="openAddSubjectModal('${cls._id}')">
+                    <span class="icon">➕</span> Add Subject
                 </button>
             </div>
         `;
         classList.appendChild(card);
     });
-}
-
-function updateClassStats() {
-    const totalClassesElement = document.getElementById('total-classes');
-    const totalSubjectsElement = document.getElementById('total-subjects');
-    
-    if (totalClassesElement) {
-        totalClassesElement.textContent = state.classes.length;
-    }
-    
-    if (totalSubjectsElement) {
-        const totalSubjects = state.subjects.length;
-        totalSubjectsElement.textContent = totalSubjects;
-    }
 }
 
 window.openClassModal = function(classId = null) {
@@ -366,20 +253,15 @@ window.openClassModal = function(classId = null) {
 async function saveClass(e) {
     if (e) e.preventDefault();
     
-    const form = document.getElementById('class-form');
-    if (!form) {
-        console.error('Class form not found');
-        showNotification('Class form not found', 'error');
-        return;
-    }
-    
+    const form = document.getElementById('classForm');
     const editMode = form.dataset.editMode === 'true';
     const editId = form.dataset.editId;
     
     const classData = {
-        name: document.getElementById('class-name-input').value,
-        section: document.getElementById('class-section-input').value,
-        description: document.getElementById('class-description-input')?.value || ''
+        name: document.getElementById('className').value,
+        code: document.getElementById('classCode').value,
+        description: document.getElementById('classDescription').value,
+        capacity: parseInt(document.getElementById('classCapacity').value) || 0
     };
     
     try {
@@ -411,10 +293,10 @@ async function saveClass(e) {
             submitBtn.textContent = 'Add Class';
         }
         
-        showNotification(editMode ? 'Class updated successfully!' : 'Class added successfully!', 'success');
+        showAlert(editMode ? 'Class updated successfully!' : 'Class added successfully!', 'success');
     } catch (error) {
         console.error('Error saving class:', error);
-        showNotification('Failed to save class: ' + error.message, 'error');
+        showAlert('Failed to save class: ' + error.message, 'error');
     }
 }
 
@@ -436,14 +318,13 @@ window.deleteClass = async function(classId) {
 
 // --- Subject Management ---
 function populateClassDropdown(selectedClassId = null) {
-    const select = document.getElementById('subject-class-select');
-    if (!select) return;
-    select.innerHTML = '<option value="">Select Class</option>';
+    const select = document.getElementById('subjectClass');
+    select.innerHTML = '<option value="">-- Select a Class --</option>';
     state.classes.forEach(cls => {
         const option = document.createElement('option');
         option.value = cls._id;
-        option.textContent = cls.name + (cls.section ? ` (${cls.section})` : '');
-        if (selectedClassId && cls._id === selectedClassId) {
+        option.textContent = cls.name;
+        if (cls._id === selectedClassId) {
             option.selected = true;
         }
         select.appendChild(option);
@@ -473,47 +354,17 @@ window.editSubject = function(subjectId) {
 };
 
 async function saveSubject(e) {
-    if (e) e.preventDefault();
-    
-    // Get form data
-    const subjectName = document.getElementById('subject-name-input').value.trim();
-    const subjectCode = document.getElementById('subject-code-input').value.trim();
-    const department = document.getElementById('subject-department-select').value;
-    const classId = document.getElementById('subject-class-select').value;
-    const deadline = document.getElementById('subject-deadline-input').value;
-    const description = document.getElementById('subject-description-input')?.value.trim() || '';
-
-    // Validate required fields
-    if (!subjectName) {
-        showNotification('Subject name is required', 'error');
-        return;
-    }
-    if (!subjectCode) {
-        showNotification('Subject code is required', 'error');
-        return;
-    }
-    if (!department || department === 'Select Department') {
-        showNotification('Department is required', 'error');
-        return;
-    }
-    if (!classId || classId === 'Select Class') {
-        showNotification('Class is required', 'error');
-        return;
-    }
-    if (!deadline) {
-        showNotification('Deadline is required', 'error');
-        return;
-    }
-
+    e.preventDefault();
+    const classId = selectedSyllabusClassId || document.getElementById('subjectClass').value;
     const subjectData = {
-        name: subjectName,
-        code: subjectCode,
+        name: document.getElementById('subjectName').value,
+        code: document.getElementById('subjectCode').value,
         class: classId,
-        department: department,
-        deadline: deadline,
-        description: description,
+        department: document.getElementById('subjectDepartment').value,
+        deadline: document.getElementById('subjectDeadline').value,
+        description: document.getElementById('subjectDescription').value,
     };
-
+    // No need to check for subjectData.class, as it comes from the dropdown
     try {
         let response;
         if (editMode && editMode.type === 'subject' && editMode.id) {
@@ -529,33 +380,16 @@ async function saveSubject(e) {
                 body: JSON.stringify(subjectData)
             });
         }
-        
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.message || 'Failed to save subject.');
         }
-
-        // Reload all data to ensure sync across all sections
         await loadData();
         renderAll();
-        
-        // Close modal and reset form
         closeModal('addSubjectModal');
-        document.getElementById('subject-form').reset();
-        
-        // Reset edit mode
-        editMode = null;
-        
-        showNotification(editMode ? 'Subject updated successfully!' : 'Subject added successfully!', 'success');
-        
-        // If we're on the classes page, refresh the class list to show updated subject count
-        if (document.getElementById('classes-page').style.display !== 'none') {
-            renderClasses();
-        }
-        
-    } catch (error) {
-        console.error('Error saving subject:', error);
-        showNotification('Failed to save subject: ' + error.message, 'error');
+        showAlert('Subject saved successfully!', 'success');
+    } catch (e) {
+        showAlert(e.message, 'danger');
     }
 }
 
@@ -577,13 +411,13 @@ window.deleteSubject = async function(subjectId) {
 
 // --- Chapter & Topic Management ---
 async function saveChapter(e) {
-    if (e) e.preventDefault();
+    e.preventDefault();
     const chapterData = {
-        title: document.getElementById('chapter-title-input').value,
-        number: parseInt(document.getElementById('chapter-number-input')?.value) || 1,
-        deadline: document.getElementById('chapter-deadline-input')?.value || '',
-        description: document.getElementById('chapter-description-input')?.value || '',
-        subject: document.getElementById('chapter-subject-id').value
+        title: document.getElementById('chapterTitle').value,
+        number: parseInt(document.getElementById('chapterNumber').value),
+        deadline: document.getElementById('chapterDeadline').value,
+        description: document.getElementById('chapterDescription').value,
+        subject: document.getElementById('chapterSubjectId').value
     };
 
     try {
@@ -609,20 +443,20 @@ async function saveChapter(e) {
 
         await loadData();
         renderAll();
-        closeModal('addChapterModal');
-        showNotification('Chapter saved successfully!', 'success');
+        closeModal('chapterModal');
+        showAlert('Chapter saved successfully!', 'success');
     } catch (e) {
-        showNotification(e.message, 'error');
+        showAlert(e.message, 'danger');
     }
 }
 
 async function saveTopic(e) {
-    if (e) e.preventDefault();
+    e.preventDefault();
     const topicData = {
-        title: document.getElementById('topic-title-input').value,
-        deadline: document.getElementById('topic-deadline-input')?.value || '',
-        notes: document.getElementById('topic-description-input')?.value || '',
-        chapter: document.getElementById('topic-chapter-id').value
+        title: document.getElementById('topicTitle').value,
+        deadline: document.getElementById('topicDeadline').value,
+        notes: document.getElementById('topicNotes').value,
+        chapter: document.getElementById('topicChapterId').value
     };
 
     try {
@@ -648,10 +482,10 @@ async function saveTopic(e) {
 
         await loadData();
         renderAll();
-        closeModal('addTopicModal');
-        showNotification('Topic saved successfully!', 'success');
+        closeModal('topicModal');
+        showAlert('Topic saved successfully!', 'success');
     } catch (e) {
-        showNotification(e.message, 'error');
+        showAlert(e.message, 'danger');
     }
 }
 
@@ -881,7 +715,7 @@ window.deleteTopic = async (topicId) => {
         renderSyllabusDrilldown();
         await loadTasks(); // Refresh the task list
         renderAll();
-        showAlert('Topic deleted successfully!', 'success');
+        showAlert('Topic deleted!', 'success');
     } catch (e) {
         showAlert(e.message, 'danger');
     }
@@ -941,11 +775,6 @@ function updateDashboard() {
 
     const overallProgress = totalTopics > 0 ? (completedTopics / totalTopics) * 100 : 0;
 
-    // Calculate KPI statistics
-    const totalKPIs = state.kpis ? state.kpis.length : 0;
-    const achievedKPIs = state.kpis ? state.kpis.filter(k => k.achieved).length : 0;
-    const kpiProgress = totalKPIs > 0 ? (achievedKPIs / totalKPIs) * 100 : 0;
-
     // Animate stat changes
     function animateStat(el, newValue) {
         if (!el) return;
@@ -972,68 +801,6 @@ function updateDashboard() {
     if (lastUpdatedEl) {
         const now = new Date();
         lastUpdatedEl.textContent = `Last updated: ${now.toLocaleString()}`;
-    }
-
-    // Add KPI section to dashboard if it doesn't exist
-    let kpiSection = document.getElementById('dashboard-kpi-section');
-    if (!kpiSection) {
-        kpiSection = document.createElement('div');
-        kpiSection.id = 'dashboard-kpi-section';
-        kpiSection.className = 'dashboard-kpi-section';
-        kpiSection.innerHTML = `
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">🎯 KPI Overview</h3>
-                </div>
-                <div class="card-body">
-                    <div class="kpi-stats-grid">
-                        <div class="kpi-stat">
-                            <div class="kpi-stat-value" id="total-kpis">${totalKPIs}</div>
-                            <div class="kpi-stat-label">Total KPIs</div>
-                        </div>
-                        <div class="kpi-stat">
-                            <div class="kpi-stat-value" id="achieved-kpis">${achievedKPIs}</div>
-                            <div class="kpi-stat-label">Achieved</div>
-                        </div>
-                        <div class="kpi-stat">
-                            <div class="kpi-stat-value" id="kpi-progress-percent">${Math.round(kpiProgress)}%</div>
-                            <div class="kpi-stat-label">Success Rate</div>
-                        </div>
-                    </div>
-                    <div class="kpi-progress-bar">
-                        <div class="progress-bar-container">
-                            <div class="progress-bar" style="width: ${kpiProgress}%"></div>
-                        </div>
-                    </div>
-                    <div class="kpi-recent">
-                        <h6>Recent KPIs</h6>
-                        <div id="recent-kpis-list">
-                            ${getRecentKPIs()}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // Insert KPI section after the main stats
-        const mainContent = document.querySelector('.main-content');
-        if (mainContent) {
-            const dashboardPage = document.getElementById('dashboard-page');
-            if (dashboardPage) {
-                dashboardPage.appendChild(kpiSection);
-            }
-        }
-    } else {
-        // Update existing KPI stats
-        const totalKPIsEl = document.getElementById('total-kpis');
-        const achievedKPIsEl = document.getElementById('achieved-kpis');
-        const kpiProgressEl = document.getElementById('kpi-progress-percent');
-        const recentKPIsList = document.getElementById('recent-kpis-list');
-        
-        if (totalKPIsEl) animateStat(totalKPIsEl, totalKPIs);
-        if (achievedKPIsEl) animateStat(achievedKPIsEl, achievedKPIs);
-        if (kpiProgressEl) animateStat(kpiProgressEl, `${Math.round(kpiProgress)}%`);
-        if (recentKPIsList) recentKPIsList.innerHTML = getRecentKPIs();
     }
 
     // Only update overview if container exists
@@ -1067,12 +834,6 @@ function updateDashboard() {
         const completedTopics = subject.chapters.reduce((sum, chap) => sum + chap.topics.filter(t => t.completed).length, 0);
         const progress = totalTopics > 0 ? (completedTopics / totalTopics) * 100 : 0;
         const progressColor = progress >= 80 ? 'high' : progress >= 40 ? 'medium' : 'low';
-        
-        // Get subject KPIs
-        const subjectKPIs = state.kpis ? state.kpis.filter(k => k.subject === subject._id) : [];
-        const achievedKPIs = subjectKPIs.filter(k => k.achieved).length;
-        const kpiProgress = subjectKPIs.length > 0 ? (achievedKPIs / subjectKPIs.length) * 100 : 0;
-        
         const groupEl = document.createElement('div');
         groupEl.className = 'dashboard-subject-group';
         groupEl.innerHTML = `
@@ -1082,12 +843,6 @@ function updateDashboard() {
                     <div class="progress-bar ${progressColor}" style="width: ${progress}%"></div>
                 </div>
                 <div class="dashboard-summary-classes">${subject.class?.name || 'Unassigned'}</div>
-                <div class="dashboard-kpi-info">
-                    <span class="kpi-indicator">🎯 ${achievedKPIs}/${subjectKPIs.length}</span>
-                    <div class="kpi-mini-progress">
-                        <div class="progress-bar" style="width: ${kpiProgress}%"></div>
-                    </div>
-                </div>
             </div>
         `;
         topGrid.appendChild(groupEl);
@@ -1112,27 +867,6 @@ function updateDashboard() {
         };
         overviewContainer.appendChild(showAllBtn);
     }
-}
-
-function getRecentKPIs() {
-    if (!state.kpis || state.kpis.length === 0) {
-        return '<div class="empty-kpis">No KPIs set yet.</div>';
-    }
-    
-    const recentKPIs = state.kpis
-        .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
-        .slice(0, 5);
-    
-    return recentKPIs.map(kpi => {
-        const subject = state.subjects.find(s => s._id === kpi.subject);
-        return `
-            <div class="recent-kpi-item ${kpi.achieved ? 'achieved' : ''}">
-                <span class="kpi-title">${kpi.title}</span>
-                <span class="kpi-subject">${subject ? subject.name : 'Unknown'}</span>
-                <span class="kpi-status">${kpi.achieved ? '✓' : '⏱'}</span>
-            </div>
-        `;
-    }).join('');
 }
 
 function renderClassAccordion(groupedByClass) {
@@ -1767,146 +1501,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Render KPIs and topics grouped by class and subject
 function renderSubjectsKPIList() {
-    const container = document.getElementById('subject-kpi-list');
+    const container = document.getElementById('subject-list');
     if (!container) return;
-    
     container.innerHTML = '';
-    
-    if (!state.subjects.length) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">📚</div>
-                <h3>No Subjects Found</h3>
-                <p>Add subjects from Class Management to start managing KPIs.</p>
-            </div>`;
+    if (!state.classes.length) {
+        container.innerHTML = '<div class="empty-state">No classes found.</div>';
         return;
     }
-    
-    // Update stats
-    updateSubjectKPIStats();
-    
-    // Create a clean list layout
-    const subjectsList = document.createElement('div');
-    subjectsList.className = 'subjects-list';
-    
-    state.subjects.forEach(subject => {
-        const subjectRow = createSubjectRow(subject);
-        subjectsList.appendChild(subjectRow);
+    state.classes.forEach(cls => {
+        // Class-level KPIs (collective for all subjects in this class)
+        const classKPIs = state.kpis ? state.kpis.filter(k => k.class === cls.id || k.class === cls._id) : [];
+        const achievedCount = classKPIs.filter(k => k.achieved).length;
+        const kpiStatus = achievedCount === classKPIs.length ? 'achieved' : achievedCount > 0 ? 'pending' : 'failed';
+        const classCard = document.createElement('div');
+        classCard.className = 'kpi-card kpi-class-card';
+        classCard.innerHTML = `
+            <div class="kpi-header kpi-class-header" style="cursor:pointer;" onclick="toggleClassKPIExpand('${cls.id || cls._id}')">
+                <h4 class="kpi-title">${cls.name} (Class KPI)</h4>
+                <div class="kpi-status ${kpiStatus}">
+                    ${kpiStatus === 'achieved' ? '✓' : kpiStatus === 'pending' ? '⏱' : '✗'}
+                </div>
+            </div>
+            <div class="kpi-items kpi-class-items" id="kpi-class-items-${cls.id || cls._id}" style="display:none;"></div>
+        `;
+        container.appendChild(classCard);
     });
-    
-    container.appendChild(subjectsList);
-}
-
-function createSubjectRow(subject) {
-    const row = document.createElement('div');
-    row.className = 'subject-row';
-    
-    // Get subject KPIs
-    const subjectKPIs = state.kpis ? state.kpis.filter(k => k.subject === subject._id || k.subject === subject.id) : [];
-    const achievedKPIs = subjectKPIs.filter(k => k.achieved).length;
-    const totalKPIs = subjectKPIs.length;
-    const kpiProgress = totalKPIs > 0 ? (achievedKPIs / totalKPIs) * 100 : 0;
-    
-    // Get progress info
-    const totalTopics = subject.chapters ? subject.chapters.flatMap(c => c.topics || []).length : 0;
-    const completedTopics = subject.chapters ? subject.chapters.flatMap(c => c.topics || []).filter(t => t.completed).length : 0;
-    const topicProgress = totalTopics > 0 ? (completedTopics / totalTopics) * 100 : 0;
-    
-    // Calculate overall progress (average of topic and KPI progress)
-    const overallProgress = totalTopics > 0 || totalKPIs > 0 ? 
-        ((topicProgress + kpiProgress) / 2) : 0;
-    
-    // Determine status color
-    let statusColor = 'gray';
-    if (overallProgress >= 80) statusColor = 'green';
-    else if (overallProgress >= 50) statusColor = 'orange';
-    else if (overallProgress > 0) statusColor = 'yellow';
-    
-    row.innerHTML = `
-        <div class="subject-main">
-            <div class="subject-info">
-                <div class="subject-name">${subject.name}</div>
-                <div class="subject-meta">
-                    <span class="subject-code">${subject.code}</span>
-                    <span class="subject-class">${subject.class ? subject.class.name : 'Unassigned'}</span>
-                    <span class="subject-dept">${subject.department}</span>
-                </div>
-            </div>
-            
-            <div class="subject-progress">
-                <div class="progress-circle ${statusColor}" data-progress="${overallProgress}">
-                    <div class="progress-circle-inner">
-                        <span class="progress-percent">${Math.round(overallProgress)}%</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="subject-details">
-            <div class="progress-bars">
-                <div class="progress-item">
-                    <div class="progress-label">Topics</div>
-                    <div class="progress-bar-container">
-                        <div class="progress-bar" style="width: ${topicProgress}%"></div>
-                        <span class="progress-text">${completedTopics}/${totalTopics}</span>
-                    </div>
-                </div>
-                <div class="progress-item">
-                    <div class="progress-label">KPIs</div>
-                    <div class="progress-bar-container">
-                        <div class="progress-bar" style="width: ${kpiProgress}%"></div>
-                        <span class="progress-text">${achievedKPIs}/${totalKPIs}</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="kpi-section">
-                <div class="kpi-header">
-                    <span class="kpi-count">${totalKPIs} KPIs</span>
-                    <div class="kpi-actions">
-                        <button class="btn-icon" onclick="addSubjectKPI('${subject._id}')" title="Add KPI">➕</button>
-                        <button class="btn-icon" onclick="editSubjectKPIs('${subject._id}')" title="Edit KPIs">✏️</button>
-                    </div>
-                </div>
-                <div class="kpi-list">
-                    ${subjectKPIs.length > 0 ? 
-                        subjectKPIs.map(kpi => `
-                            <div class="kpi-item ${kpi.achieved ? 'achieved' : ''}">
-                                <input type="checkbox" class="kpi-checkbox" 
-                                       ${kpi.achieved ? 'checked' : ''} 
-                                       onchange="toggleSubjectKPI('${kpi._id || kpi.id}', this.checked)">
-                                <span class="kpi-text">${kpi.title}</span>
-                            </div>
-                        `).join('') : 
-                        '<div class="empty-kpis">No KPIs set</div>'
-                    }
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Set the CSS custom property for the progress circle
-    const progressCircle = row.querySelector('.progress-circle');
-    if (progressCircle) {
-        progressCircle.style.setProperty('--progress', overallProgress);
-    }
-    
-    return row;
-}
-
-function updateSubjectKPIStats() {
-    const subjectsCountElement = document.getElementById('subjects-kpi-count');
-    const kpiAchievedElement = document.getElementById('kpi-achieved-count');
-    
-    if (subjectsCountElement) {
-        subjectsCountElement.textContent = state.subjects.length;
-    }
-    
-    if (kpiAchievedElement) {
-        const totalKPIs = state.kpis ? state.kpis.length : 0;
-        const achievedKPIs = state.kpis ? state.kpis.filter(k => k.achieved).length : 0;
-        kpiAchievedElement.textContent = `${achievedKPIs}/${totalKPIs}`;
-    }
 }
 
 window.toggleClassKPIExpand = function(classId) {
@@ -2073,28 +1692,21 @@ window.openAddClassModal = function() {
     openModal('addClassModal');
 };
 window.openAddSubjectModal = function(classId = null) {
-    editMode = null;
-    document.getElementById('subject-form').reset();
-    document.querySelector('#addSubjectModal .modal-title').textContent = 'Add New Subject';
+    document.getElementById('subjectForm').reset();
+    editMode = { type: 'subject' };
     populateClassDropdown(classId);
     openModal('addSubjectModal');
 };
 window.openAddChapterModal = function(subjectId) {
-    const form = document.getElementById('chapter-form');
-    if (form) {
-        form.reset();
-    }
+    document.getElementById('chapterForm').reset();
     editMode = { type: 'chapter', subjectId };
-    document.getElementById('chapter-subject-id').value = subjectId;
+    document.getElementById('chapterSubjectId').value = subjectId;
     openModal('addChapterModal');
 };
 window.openAddTopicModal = function(chapterId) {
-    const form = document.getElementById('topic-form');
-    if (form) {
-        form.reset();
-    }
+    document.getElementById('topicForm').reset();
     editMode = { type: 'topic', chapterId };
-    document.getElementById('topic-chapter-id').value = chapterId;
+    document.getElementById('topicChapterId').value = chapterId;
     openModal('addTopicModal');
 };
 
@@ -2180,14 +1792,14 @@ window.toggleClassKPIExpand = function(classId) {
                         </div>
                     </div>
                     <div class="kpi-items">
-                        ${subjectKPIs.map(kpi => `
+                        ${subjectKPIs.length ? subjectKPIs.map(kpi => `
                             <div class="kpi-item">
                                 <input type="checkbox" class="kpi-checkbox" 
                                        ${kpi.achieved ? 'checked' : ''} 
                                        onchange="updateKPI('${kpi.id}', this.checked)">
                                 <span class="kpi-label">${kpi.title} (${kpi.current}/${kpi.target})</span>
                             </div>
-                        `).join('')}
+                        `).join('') : '<div class="kpi-item">No KPIs for this subject.</div>'}
                     </div>
                 `;
                 items.appendChild(subjectBlock);
@@ -3080,87 +2692,59 @@ async function saveMilestone() {
     }
 }
 
-async function saveScheduledReport(e) {
-    if (e) e.preventDefault();
-    
-    // Add null checks for all form elements
-    const reportTypeEl = document.getElementById('reportType');
-    const reportTimeEl = document.getElementById('reportTime');
-    const dayOfWeekEl = document.getElementById('dayOfWeek');
-    const dayOfMonthEl = document.getElementById('dayOfMonth');
-    const reportNameEl = document.getElementById('reportName');
-    const reportFormatEl = document.getElementById('reportFormat');
-    const reportRecipientsEl = document.getElementById('reportRecipients');
-    
-    // Check if all required elements exist
-    if (!reportTypeEl || !reportTimeEl || !reportNameEl || !reportFormatEl || !reportRecipientsEl) {
-        showAlert('Scheduled report form elements not found. Please refresh the page.', 'error');
-        return;
-    }
-    
-    const type = reportTypeEl.value;
-    const schedule = {
-        time: reportTimeEl.value
-    };
-    
-    if (type === 'weekly' && dayOfWeekEl) {
-        schedule.dayOfWeek = parseInt(dayOfWeekEl.value);
-    } else if (type === 'monthly' && dayOfMonthEl) {
-        schedule.dayOfMonth = parseInt(dayOfMonthEl.value);
-    }
-    
-    const reportData = {
-        name: reportNameEl.value,
-        type: type,
-        format: reportFormatEl.value,
-        recipients: reportRecipientsEl.value.split(',').map(e => e.trim()),
-        schedule: schedule
-    };
-    
+async function saveScheduledReport() {
     try {
+        const form = document.getElementById('scheduledReportForm');
+        const formData = new FormData(form);
+        
+        const reportData = {
+            name: formData.get('name'),
+            schedule: formData.get('schedule'),
+            recipients: formData.get('recipients')
+        };
+        
+        if (!reportData.name || !reportData.schedule) {
+            showAlert('Please fill in all required fields', 'warning');
+            return;
+        }
+        
         const response = await fetch(`${API_BASE}/scheduled-reports`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(reportData)
         });
         
-        if (!response.ok) throw new Error('Failed to create scheduled report');
+        if (!response.ok) throw new Error('Failed to save scheduled report');
         
-        await loadScheduledReports();
-        closeModal('scheduledReportModal');
+        closeModal('addScheduledReportModal');
         showAlert('Scheduled report created successfully!', 'success');
+        await loadScheduledReports();
+        loadPageContent(state.currentPage);
     } catch (error) {
-        showAlert(error.message, 'danger');
+        console.error('Error saving scheduled report:', error);
+        showAlert('Failed to save scheduled report', 'danger');
     }
 }
 
 async function loadMilestones() {
     try {
-        const response = await fetch(`${API_BASE}/milestones/my-milestones`);
-        if (response.status === 401) {
-            console.log('Milestones require authentication, skipping...');
-            return;
-        }
+        const response = await fetch(`${API_BASE}/milestones`);
         if (!response.ok) throw new Error('Failed to load milestones');
-        const milestones = await response.json();
-        renderMilestones(milestones);
+        state.milestones = await response.json();
     } catch (error) {
         console.error('Error loading milestones:', error);
+        state.milestones = [];
     }
 }
 
 async function loadScheduledReports() {
     try {
         const response = await fetch(`${API_BASE}/scheduled-reports`);
-        if (response.status === 401) {
-            console.log('Scheduled reports require authentication, skipping...');
-            return;
-        }
         if (!response.ok) throw new Error('Failed to load scheduled reports');
-        const reports = await response.json();
-        renderScheduledReports(reports);
+        state.scheduledReports = await response.json();
     } catch (error) {
         console.error('Error loading scheduled reports:', error);
+        state.scheduledReports = [];
     }
 }
 
@@ -3384,15 +2968,11 @@ let milestones = { unlocked: [], locked: [], totalPoints: 0 };
 async function loadMilestones() {
     try {
         const response = await fetch(`${API_BASE}/milestones/my-milestones`);
-        if (response.status === 401) {
-            console.log('Milestones require authentication, skipping...');
-            return;
-        }
         if (!response.ok) throw new Error('Failed to load milestones');
-        const milestones = await response.json();
-        renderMilestones(milestones);
+        milestones = await response.json();
+        renderMilestones();
     } catch (error) {
-        console.error('Error loading milestones:', error);
+        showAlert('Failed to load milestones: ' + error.message, 'danger');
     }
 }
 
@@ -3508,15 +3088,11 @@ let scheduledReports = [];
 async function loadScheduledReports() {
     try {
         const response = await fetch(`${API_BASE}/scheduled-reports`);
-        if (response.status === 401) {
-            console.log('Scheduled reports require authentication, skipping...');
-            return;
-        }
         if (!response.ok) throw new Error('Failed to load scheduled reports');
-        const reports = await response.json();
-        renderScheduledReports(reports);
+        scheduledReports = await response.json();
+        renderScheduledReports();
     } catch (error) {
-        console.error('Error loading scheduled reports:', error);
+        showAlert('Failed to load scheduled reports: ' + error.message, 'danger');
     }
 }
 
@@ -3617,6 +3193,45 @@ window.updateScheduleOptions = function() {
     }
 };
 
+async function saveScheduledReport(e) {
+    if (e) e.preventDefault();
+    
+    const type = document.getElementById('reportType').value;
+    const schedule = {
+        time: document.getElementById('reportTime').value
+    };
+    
+    if (type === 'weekly') {
+        schedule.dayOfWeek = parseInt(document.getElementById('dayOfWeek').value);
+    } else if (type === 'monthly') {
+        schedule.dayOfMonth = parseInt(document.getElementById('dayOfMonth').value);
+    }
+    
+    const reportData = {
+        name: document.getElementById('reportName').value,
+        type: type,
+        format: document.getElementById('reportFormat').value,
+        recipients: document.getElementById('reportRecipients').value.split(',').map(e => e.trim()),
+        schedule: schedule
+    };
+    
+    try {
+        const response = await fetch(`${API_BASE}/scheduled-reports`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reportData)
+        });
+        
+        if (!response.ok) throw new Error('Failed to create scheduled report');
+        
+        await loadScheduledReports();
+        closeModal('scheduledReportModal');
+        showAlert('Scheduled report created successfully!', 'success');
+    } catch (error) {
+        showAlert(error.message, 'danger');
+    }
+}
+
 window.toggleScheduledReport = async function(reportId) {
     try {
         const response = await fetch(`${API_BASE}/scheduled-reports/${reportId}/toggle`, {
@@ -3704,10 +3319,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     // ... existing initialization code ...
     
     // Add new form event listeners
-    const kpiForm = document.getElementById('kpiForm');
-    if (kpiForm) kpiForm.addEventListener('submit', saveKPI);
-    const scheduledReportForm = document.getElementById('scheduledReportForm');
-    if (scheduledReportForm) scheduledReportForm.addEventListener('submit', saveScheduledReport);
+    document.getElementById('kpiForm').addEventListener('submit', saveKPI);
+    document.getElementById('scheduledReportForm').addEventListener('submit', saveScheduledReport);
 });
 
 // ===== Add dropdown functionality =====
@@ -3800,30 +3413,9 @@ async function exportReport(type, format) {
 // Initialize missing data loading functions
 async function loadProgressHistory() {
     try {
-        // Since there's no dedicated progress endpoint, we'll calculate progress from subjects
-        const response = await fetch(`${API_BASE}/syllabus/subjects`);
-        if (!response.ok) throw new Error('Failed to load subjects for progress calculation');
-        
-        const subjects = await response.json();
-        
-        // Calculate progress from subjects data
-        const progressHistory = subjects.map(subject => {
-            const totalTopics = subject.chapters.reduce((sum, c) => sum + c.topics.length, 0);
-            const completedTopics = subject.chapters.reduce((sum, c) => 
-                sum + c.topics.filter(t => t.completed).length, 0);
-            const progress = totalTopics > 0 ? (completedTopics / totalTopics) * 100 : 0;
-            
-            return {
-                subjectId: subject._id,
-                subjectName: subject.name,
-                progress: Math.round(progress),
-                totalTopics,
-                completedTopics,
-                date: new Date().toISOString()
-            };
-        });
-        
-        state.progressHistory = progressHistory;
+        const response = await fetch(`${API_BASE}/progress`);
+        if (!response.ok) throw new Error('Failed to load progress history');
+        state.progressHistory = await response.json();
     } catch (error) {
         console.error('Error loading progress history:', error);
         state.progressHistory = [];
@@ -3899,360 +3491,27 @@ async function fetchTasksByType(type) {
 function renderTasksList(tasks, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
-    
     if (!tasks.length) {
-        container.innerHTML = `
-            <div class="task-empty-state">
-                <div class="task-empty-state-icon">📋</div>
-                <h3>No tasks found</h3>
-                <p>Click "Generate Tasks" to create new tasks for this period.</p>
-                <button class="task-control-btn primary" onclick="generateTasks('${containerId.replace('-list', '')}')">
-                    <span>🚀</span> Generate Tasks
-                </button>
-            </div>`;
+        container.innerHTML = '<div class="empty-state">No tasks found.</div>';
         return;
     }
-    
-    // Calculate task statistics
-    const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(task => task.completed).length;
-    const pendingTasks = totalTasks - completedTasks;
-    const overdueTasks = tasks.filter(task => {
-        if (task.completed) return false;
-        const deadline = new Date(task.dueDate);
-        const today = new Date();
-        return deadline < today;
-    }).length;
-    
-    // Get task type from container ID
-    const taskType = containerId.replace('-tasks-list', '').replace('-list', '');
-    const taskTypeLabel = taskType.charAt(0).toUpperCase() + taskType.slice(1);
-    
-    container.innerHTML = `
-        <div class="task-container">
-            <div class="task-header">
-                <h3>📋 ${taskTypeLabel} Tasks</h3>
-                <div class="task-header-actions">
-                    <button class="task-control-btn secondary" onclick="load${taskType.charAt(0).toUpperCase() + taskType.slice(1)}Tasks()" title="Refresh Tasks">
-                        <span>🔄</span> Refresh
-                    </button>
-                    <button class="task-control-btn primary" onclick="generateTasks('${taskType}')" title="Generate New Tasks">
-                        <span>➕</span> Generate New
-                    </button>
-                </div>
+    container.innerHTML = '';
+    tasks.forEach(task => {
+        const div = document.createElement('div');
+        div.className = `task-item ${task.completed ? 'completed' : ''}`;
+        div.innerHTML = `
+            <div class="task-title">${task.title}</div>
+            <div class="task-meta">
+                <span class="task-date">${new Date(task.date).toLocaleDateString()}</span>
+                <span class="task-priority priority-${task.priority}">${task.priority}</span>
+                <span class="task-type">${task.type}</span>
+                <span class="task-class">${task.class?.name || ''}</span>
+                <span class="task-subject">${task.subject?.name || ''}</span>
             </div>
-            
-            <div class="task-stats">
-                <div class="task-stat">
-                    <div class="task-stat-icon completed">✓</div>
-                    <span>${completedTasks} Completed</span>
-                </div>
-                <div class="task-stat">
-                    <div class="task-stat-icon pending">⏳</div>
-                    <span>${pendingTasks} Pending</span>
-                </div>
-                ${overdueTasks > 0 ? `
-                    <div class="task-stat">
-                        <div class="task-stat-icon overdue">⚠️</div>
-                        <span>${overdueTasks} Overdue</span>
-                    </div>
-                ` : ''}
-                <div class="task-stat">
-                    <span>📊</span>
-                    <span>${totalTasks} Total</span>
-                </div>
-            </div>
-            
-            <div class="task-progress">
-                <div class="task-progress-bar">
-                    <div class="task-progress-fill" style="width: ${totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0}%"></div>
-                </div>
-                <div class="task-progress-text">
-                    ${completedTasks} of ${totalTasks} tasks completed (${totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0}%)
-                </div>
-            </div>
-            
-            <div class="task-filters">
-                <button class="task-filter-btn active" onclick="filterTasks('${containerId}', 'all')">All</button>
-                <button class="task-filter-btn" onclick="filterTasks('${containerId}', 'pending')">Pending</button>
-                <button class="task-filter-btn" onclick="filterTasks('${containerId}', 'completed')">Completed</button>
-                ${overdueTasks > 0 ? `<button class="task-filter-btn" onclick="filterTasks('${containerId}', 'overdue')">Overdue</button>` : ''}
-            </div>
-            
-            <ul class="task-list">
-                ${tasks.map(task => {
-                    const isOverdue = !task.completed && new Date(task.dueDate) < new Date();
-                    const isDueSoon = !task.completed && !isOverdue && new Date(task.dueDate) <= new Date(Date.now() + 24 * 60 * 60 * 1000);
-                    
-                    return `
-                        <li class="task-item ${task.completed ? 'completed' : ''} ${isOverdue ? 'overdue' : ''}" data-task-id="${task._id}">
-                            <div class="task-checkbox ${task.completed ? 'checked' : ''}" onclick="toggleTaskComplete('${task._id}', '${containerId}')">
-                                ${task.completed ? '✓' : ''}
-                            </div>
-                            
-                            <div class="task-content">
-                                <div class="task-title">${task.title}</div>
-                                
-                                <div class="task-meta">
-                                    <div class="task-meta-item">
-                                        <span class="task-meta-icon">📅</span>
-                                        <span class="task-deadline ${isOverdue ? 'urgent' : isDueSoon ? 'due-soon' : 'far'}">
-                                            ${new Date(task.dueDate).toLocaleDateString()}
-                                        </span>
-                                    </div>
-                                    
-                                    <div class="task-meta-item">
-                                        <span class="task-priority priority-${task.priority || 'medium'}">${task.priority || 'Medium'}</span>
-                                    </div>
-                                    
-                                    <div class="task-meta-item">
-                                        <span class="task-type">${task.type || taskType}</span>
-                                    </div>
-                                    
-                                    ${task.class ? `
-                                        <div class="task-meta-item">
-                                            <span class="task-class">🏫 ${task.class.name}</span>
-                                        </div>
-                                    ` : ''}
-                                    
-                                    ${task.subject ? `
-                                        <div class="task-meta-item">
-                                            <span class="task-subject">📚 ${task.subject.name}</span>
-                                        </div>
-                                    ` : ''}
-                                </div>
-                                
-                                ${task.notes ? `
-                                    <div class="task-notes">${task.notes}</div>
-                                ` : ''}
-                            </div>
-                            
-                            <div class="task-actions">
-                                ${!task.completed ? `
-                                    <button class="task-action-btn complete" onclick="toggleTaskComplete('${task._id}', '${containerId}')" title="Mark Complete">
-                                        ✓
-                                    </button>
-                                ` : ''}
-                                <button class="task-action-btn edit" onclick="editTask('${task._id}')" title="Edit Task">
-                                    ✏️
-                                </button>
-                                <button class="task-action-btn delete" onclick="deleteTask('${task._id}')" title="Delete Task">
-                                    🗑️
-                                </button>
-                            </div>
-                        </li>
-                    `;
-                }).join('')}
-            </ul>
-        </div>
-    `;
-}
-
-// Add task filtering function
-window.filterTasks = function(containerId, filter) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    
-    // Update filter buttons
-    const filterButtons = container.querySelectorAll('.task-filter-btn');
-    filterButtons.forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
-    
-    // Get all task items
-    const taskItems = container.querySelectorAll('.task-item');
-    
-    taskItems.forEach(item => {
-        const isCompleted = item.classList.contains('completed');
-        const isOverdue = item.classList.contains('overdue');
-        
-        let show = false;
-        switch (filter) {
-            case 'all':
-                show = true;
-                break;
-            case 'pending':
-                show = !isCompleted;
-                break;
-            case 'completed':
-                show = isCompleted;
-                break;
-            case 'overdue':
-                show = isOverdue;
-                break;
-        }
-        
-        item.style.display = show ? 'flex' : 'none';
-    });
-};
-
-// Enhanced task toggle function
-window.toggleTaskComplete = async function(taskId, containerId) {
-    try {
-        const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ completed: true })
-        });
-        
-        if (!response.ok) throw new Error('Failed to update task');
-        
-        // Reload the relevant list
-        const taskType = containerId.replace('-tasks-list', '').replace('-list', '');
-        if (taskType === 'daily') loadDailyTasks();
-        else if (taskType === 'weekly') loadWeeklyTasks();
-        else if (taskType === 'monthly') loadMonthlyTasks();
-        
-        showAlert('Task marked as complete!', 'success');
-    } catch (error) {
-        showAlert('Failed to update task: ' + error.message, 'danger');
-    }
-};
-
-// Add task editing function
-window.editTask = async function(taskId) {
-    try {
-        // Fetch the task data from task generation endpoint
-        const response = await fetch(`${API_BASE}/task-generation/tasks?id=${taskId}`);
-        if (!response.ok) throw new Error('Failed to fetch task');
-        
-        const data = await response.json();
-        const task = data.tasks && data.tasks.length > 0 ? data.tasks[0] : null;
-        
-        if (!task) {
-            throw new Error('Task not found');
-        }
-        
-        // Populate the edit form
-        document.getElementById('edit-task-id').value = taskId;
-        document.getElementById('edit-task-title').value = task.title || '';
-        document.getElementById('edit-task-description').value = task.description || task.notes || '';
-        document.getElementById('edit-task-due-date').value = task.date ? new Date(task.date).toISOString().split('T')[0] : '';
-        document.getElementById('edit-task-priority').value = task.priority || 'medium';
-        document.getElementById('edit-task-type').value = task.type || 'daily';
-        
-        // Open the edit modal
-        openModal('editTaskModal');
-    } catch (error) {
-        console.error('Error fetching task:', error);
-        showNotification('Failed to load task for editing: ' + error.message, 'error');
-    }
-};
-
-// Add save edited task function
-window.saveEditedTask = async function() {
-    try {
-        const taskId = document.getElementById('edit-task-id').value;
-        const taskData = {
-            title: document.getElementById('edit-task-title').value,
-            description: document.getElementById('edit-task-description').value,
-            date: document.getElementById('edit-task-due-date').value,
-            priority: document.getElementById('edit-task-priority').value,
-            type: document.getElementById('edit-task-type').value
-        };
-        
-        if (!taskData.title || !taskData.date) {
-            showNotification('Please fill in all required fields', 'error');
-            return;
-        }
-        
-        const response = await fetch(`${API_BASE}/task-generation/tasks/${taskId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(taskData)
-        });
-        
-        if (!response.ok) throw new Error('Failed to update task');
-        
-        closeModal('editTaskModal');
-        showNotification('Task updated successfully!', 'success');
-        
-        // Reload tasks
-        await loadTasks();
-    } catch (error) {
-        console.error('Error updating task:', error);
-        showNotification('Failed to update task: ' + error.message, 'error');
-    }
-};
-
-// Add task deletion function
-window.deleteTask = async function(taskId) {
-    if (!confirm('Are you sure you want to delete this task?')) return;
-    
-    try {
-        const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
-            method: 'DELETE'
-        });
-        
-        if (!response.ok) throw new Error('Failed to delete task');
-        
-        // Reload all task lists
-        loadDailyTasks();
-        loadWeeklyTasks();
-        loadMonthlyTasks();
-        
-        showAlert('Task deleted successfully!', 'success');
-    } catch (error) {
-        showAlert('Failed to delete task: ' + error.message, 'danger');
-    }
-};
-  
-// --- MISSING FUNCTION DEFINITIONS (APPENDED) ---
-function editClass(classId) {
-    const cls = state.classes.find(c => c._id === classId);
-    if (!cls) return;
-    document.getElementById('className').value = cls.name;
-    document.getElementById('classDescription').value = cls.description || '';
-    state.editingClassId = classId;
-    openModal('addClassModal');
-}
-
-async function loadClasses() {
-    try {
-        const response = await fetch(`${API_BASE}/classes`);
-        if (!response.ok) throw new Error('Failed to load classes');
-        state.classes = await response.json();
-        renderClasses();
-    } catch (error) {
-        console.error('Error loading classes:', error);
-        state.classes = [];
-    }
-}
-window.loadClasses = loadClasses;
-
-async function loadSubjects() {
-    try {
-        const response = await fetch(`${API_BASE}/syllabus/subjects`);
-        if (!response.ok) throw new Error('Failed to load subjects');
-        state.subjects = await response.json();
-        renderSubjects();
-    } catch (error) {
-        console.error('Error loading subjects:', error);
-        state.subjects = [];
-    }
-}
-window.loadSubjects = loadSubjects;
-
-function filterClasses(searchTerm) {
-    const classItems = document.querySelectorAll('.class-item');
-    classItems.forEach(item => {
-        const className = item.querySelector('.class-name').textContent.toLowerCase();
-        if (className.includes(searchTerm.toLowerCase())) {
-            item.style.display = 'block';
-        } else {
-            item.style.display = 'none';
-        }
-    });
-}
-
-function filterSubjects(searchTerm) {
-    const subjectItems = document.querySelectorAll('.subject-item');
-    subjectItems.forEach(item => {
-        const subjectName = item.querySelector('.subject-name').textContent.toLowerCase();
-        if (subjectName.includes(searchTerm.toLowerCase())) {
-            item.style.display = 'block';
-        } else {
-            item.style.display = 'none';
-        }
+            <div class="task-notes">${task.notes || ''}</div>
+            <button class="btn btn-sm btn-success" ${task.completed ? 'disabled' : ''} onclick="markTaskComplete('${task._id}', '${containerId}')">Mark Complete</button>
+        `;
+        container.appendChild(div);
     });
 }
 
@@ -4269,292 +3528,48 @@ async function loadMonthlyTasks() {
     renderTasksList(tasks, 'monthly-tasks-list');
 }
 
+window.markTaskComplete = async function(taskId, containerId) {
+    await fetch(`${API_BASE}/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: true })
+    });
+    // Reload the relevant list
+    if (containerId === 'daily-tasks-list') loadDailyTasks();
+    if (containerId === 'weekly-tasks-list') loadWeeklyTasks();
+    if (containerId === 'monthly-tasks-list') loadMonthlyTasks();
+};
+
+// Manual generation handlers
 async function generateTasks(type) {
-    try {
-        // Only generate new tasks when explicitly requested
-        const response = await fetch(`${TASK_API_BASE}/${type}`, { method: 'POST' });
-        if (!response.ok) throw new Error('Failed to generate tasks');
-        
-        // Reload the relevant lists to show the new tasks
-        if (type === 'daily') loadDailyTasks();
-        if (type === 'weekly') loadWeeklyTasks();
-        if (type === 'monthly') loadMonthlyTasks();
-        if (type === 'all') {
-            loadDailyTasks();
-            loadWeeklyTasks();
-            loadMonthlyTasks();
-        }
-        
-        showAlert(`${type.charAt(0).toUpperCase() + type.slice(1)} tasks generated successfully!`, 'success');
-    } catch (error) {
-        console.error('Error generating tasks:', error);
-        showAlert('Failed to generate tasks: ' + error.message, 'danger');
+    await fetch(`${TASK_API_BASE}/${type}`, { method: 'POST' });
+    if (type === 'daily') loadDailyTasks();
+    if (type === 'weekly') loadWeeklyTasks();
+    if (type === 'monthly') loadMonthlyTasks();
+    if (type === 'all') {
+        loadDailyTasks();
+        loadWeeklyTasks();
+        loadMonthlyTasks();
     }
 }
 
-// Add event listeners for task buttons
-document.addEventListener('DOMContentLoaded', function() {
-    const generateDailyTasksBtn = document.getElementById('generateDailyTasksBtn');
-    const generateWeeklyTasksBtn = document.getElementById('generateWeeklyTasksBtn');
-    const generateMonthlyTasksBtn = document.getElementById('generateMonthlyTasksBtn');
-    const generateAllTasksBtn = document.getElementById('generateAllTasksBtn');
-    const refreshDailyTasksBtn = document.getElementById('refreshDailyTasksBtn');
-    const refreshWeeklyTasksBtn = document.getElementById('refreshWeeklyTasksBtn');
-    const refreshMonthlyTasksBtn = document.getElementById('refreshMonthlyTasksBtn');
-    
-    if (generateDailyTasksBtn) generateDailyTasksBtn.onclick = () => generateTasks('daily');
-    if (generateWeeklyTasksBtn) generateWeeklyTasksBtn.onclick = () => generateTasks('weekly');
-    if (generateMonthlyTasksBtn) generateMonthlyTasksBtn.onclick = () => generateTasks('monthly');
-    if (generateAllTasksBtn) generateAllTasksBtn.onclick = () => generateTasks('all');
-    if (refreshDailyTasksBtn) refreshDailyTasksBtn.onclick = loadDailyTasks;
-    if (refreshWeeklyTasksBtn) refreshWeeklyTasksBtn.onclick = loadWeeklyTasks;
-    if (refreshMonthlyTasksBtn) refreshMonthlyTasksBtn.onclick = loadMonthlyTasks;
-});
+document.getElementById('generateDailyTasksBtn').onclick = () => generateTasks('daily');
+document.getElementById('generateWeeklyTasksBtn').onclick = () => generateTasks('weekly');
+document.getElementById('generateMonthlyTasksBtn').onclick = () => generateTasks('monthly');
+document.getElementById('generateAllTasksBtn').onclick = () => generateTasks('all');
+document.getElementById('refreshDailyTasksBtn').onclick = loadDailyTasks;
+document.getElementById('refreshWeeklyTasksBtn').onclick = loadWeeklyTasks;
+document.getElementById('refreshMonthlyTasksBtn').onclick = loadMonthlyTasks;
 
-// When tasks page is shown, only load existing tasks (don't generate new ones)
+// When tasks page is shown, load all tasks
 window.showTab = (function (originalShowTab) {
     return function(tabId, event) {
         originalShowTab(tabId, event);
         if (tabId === 'tasks') {
-            // Only load existing tasks, don't generate new ones
             loadDailyTasks();
             loadWeeklyTasks();
             loadMonthlyTasks();
         }
     };
 })(window.showTab);
-  
-// Ensure all key functions are attached to window for global access
-window.editClass = editClass;
-window.loadClasses = loadClasses;
-window.loadSubjects = loadSubjects;
-window.filterClasses = filterClasses;
-window.filterSubjects = filterSubjects;
-window.loadDailyTasks = loadDailyTasks;
-window.loadWeeklyTasks = loadWeeklyTasks;
-window.loadMonthlyTasks = loadMonthlyTasks;
-window.generateTasks = generateTasks;
-
-// Ensure TASK_API_BASE is defined
-if (typeof TASK_API_BASE === 'undefined') {
-  window.TASK_API_BASE = `${API_BASE}/tasks`;
-}
-  
-// Clean up duplicate tasks
-async function cleanupDuplicateTasks() {
-    try {
-        const response = await fetch('/api/task-generation/cleanup-duplicates', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            showNotification(result.message, 'success');
-            // Reload tasks after cleanup
-            await loadTasks();
-        } else {
-            showNotification('Failed to clean up duplicate tasks', 'error');
-        }
-    } catch (error) {
-        console.error('Error cleaning up duplicate tasks:', error);
-        showNotification('Error cleaning up duplicate tasks', 'error');
-    }
-}
-
-// Load tasks with duplicate prevention
-async function loadTasks() {
-    try {
-        const response = await fetch('/api/task-generation/tasks');
-        if (response.ok) {
-            const data = await response.json();
-            
-            if (data.success && data.tasks) {
-                // Group tasks by subject to prevent duplicates
-                const groupedTasks = {};
-                data.tasks.forEach(task => {
-                    const key = `${task.subject?._id || task.subject}-${task.type}`;
-                    if (!groupedTasks[key]) {
-                        groupedTasks[key] = [];
-                    }
-                    groupedTasks[key].push(task);
-                });
-
-                // Take only the most recent task from each group
-                const uniqueTasks = [];
-                Object.values(groupedTasks).forEach(taskGroup => {
-                    // Sort by creation date and take the most recent
-                    taskGroup.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                    uniqueTasks.push(taskGroup[0]);
-                });
-
-                renderTasks(uniqueTasks);
-                updateTaskStats(uniqueTasks);
-            } else {
-                renderTasks([]);
-                updateTaskStats([]);
-            }
-        } else {
-            console.error('Failed to load tasks');
-            renderTasks([]);
-            updateTaskStats([]);
-        }
-    } catch (error) {
-        console.error('Error loading tasks:', error);
-        renderTasks([]);
-        updateTaskStats([]);
-    }
-}
-  
-// Generate tasks with cleanup
-async function generateTasks() {
-    try {
-        showNotification('Generating tasks...', 'info');
-        
-        // First clean up any existing duplicates
-        await cleanupDuplicateTasks();
-        
-        const response = await fetch('/api/task-generation/all', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            showNotification(result.message, 'success');
-            await loadTasks();
-        } else {
-            showNotification('Failed to generate tasks', 'error');
-        }
-    } catch (error) {
-        console.error('Error generating tasks:', error);
-        showNotification('Error generating tasks', 'error');
-    }
-}
-  
-// Task generation buttons
-document.getElementById('generateDailyTasksBtn')?.addEventListener('click', () => generateTasks());
-document.getElementById('generateWeeklyTasksBtn')?.addEventListener('click', () => generateTasks());
-document.getElementById('generateMonthlyTasksBtn')?.addEventListener('click', () => generateTasks());
-document.getElementById('generateAllTasksBtn')?.addEventListener('click', () => generateTasks());
-document.getElementById('cleanupDuplicateTasksBtn')?.addEventListener('click', () => cleanupDuplicateTasks());
-  
-// Show notification (simple toast)
-function showNotification(message, type = 'info') {
-    // Remove any existing notification
-    const existing = document.getElementById('notification-toast');
-    if (existing) existing.remove();
-    const toast = document.createElement('div');
-    toast.id = 'notification-toast';
-    toast.textContent = message;
-    toast.style.position = 'fixed';
-    toast.style.bottom = '32px';
-    toast.style.right = '32px';
-    toast.style.padding = '16px 24px';
-    toast.style.background = type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : '#6366f1';
-    toast.style.color = 'white';
-    toast.style.borderRadius = '8px';
-    toast.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-    toast.style.fontSize = '16px';
-    toast.style.zIndex = 9999;
-    document.body.appendChild(toast);
-    setTimeout(() => { toast.remove(); }, 3000);
-}
-
-// Dummy updateTaskStats implementation
-function updateTaskStats(tasks) {
-    // You can implement stats update here if needed
-    // For now, just log to console
-    // console.log('Task stats:', tasks.length);
-}
-  
-// Utility Functions
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-  
-// KPI Management Functions
-window.addSubjectKPI = function(subjectId) {
-    const title = prompt('Enter KPI title:');
-    if (!title) return;
-    
-    const kpiData = {
-        title: title,
-        subject: subjectId,
-        achieved: false,
-        current: 0,
-        target: 100
-    };
-    
-    fetch(`${API_BASE}/kpis`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(kpiData)
-    })
-    .then(response => response.json())
-    .then(() => {
-        loadKPIs();
-        renderSubjectsKPIList();
-        showNotification('KPI added successfully!', 'success');
-    })
-    .catch(error => {
-        showNotification('Failed to add KPI: ' + error.message, 'error');
-    });
-};
-
-window.editSubjectKPIs = function(subjectId) {
-    const subject = state.subjects.find(s => s._id === subjectId);
-    if (!subject) return;
-    
-    // For now, we'll use a simple prompt approach
-    // In a real app, you might want a modal for better UX
-    showNotification('KPI editing feature coming soon!', 'info');
-};
-
-window.toggleSubjectKPI = function(kpiId, achieved) {
-    fetch(`${API_BASE}/kpis/${kpiId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ achieved: achieved })
-    })
-    .then(response => response.json())
-    .then(() => {
-        loadKPIs();
-        renderSubjectsKPIList();
-        updateDashboard(); // Update dashboard KPI stats
-        showNotification('KPI updated successfully!', 'success');
-    })
-    .catch(error => {
-        showNotification('Failed to update KPI: ' + error.message, 'error');
-    });
-};
-
-window.deleteSubjectKPI = function(kpiId) {
-    if (!confirm('Are you sure you want to delete this KPI?')) return;
-    
-    fetch(`${API_BASE}/kpis/${kpiId}`, {
-        method: 'DELETE'
-    })
-    .then(() => {
-        loadKPIs();
-        renderSubjectsKPIList();
-        updateDashboard(); // Update dashboard KPI stats
-        showNotification('KPI deleted successfully!', 'success');
-    })
-    .catch(error => {
-        showNotification('Failed to delete KPI: ' + error.message, 'error');
-    });
-};
   
